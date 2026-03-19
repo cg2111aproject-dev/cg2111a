@@ -59,16 +59,26 @@ PACKET_TYPE_COMMAND  = 0
 PACKET_TYPE_RESPONSE = 1
 PACKET_TYPE_MESSAGE  = 2
 
-COMMAND_ESTOP  = 0
+COMMAND_ESTOP      = 0
 COMMAND_GET_COLOUR = 1
-# TODO (Activity 2): define your own command type for the color sensor here.
-# It must match the value you add to TCommandType in packets.h.
+# ADDED: motor drive commands
+COMMAND_FORWARD      = 2
+COMMAND_BACKWARD     = 3
+COMMAND_TURN_LEFT    = 4
+COMMAND_TURN_RIGHT   = 5
+COMMAND_STOP_MOTORS  = 6
+COMMAND_SET_SPEED    = 7
+# ADDED: claw commands
+COMMAND_CLAW_BASE     = 8
+COMMAND_CLAW_SHOULDER = 9
+COMMAND_CLAW_ELBOW    = 10
+COMMAND_CLAW_GRIPPER  = 11
+COMMAND_CLAW_HOME     = 12
+COMMAND_CLAW_SPEED    = 13
 
-RESP_OK     = 0
-RESP_STATUS = 1
+RESP_OK          = 0
+RESP_STATUS      = 1
 RESP_COLOUR_DATA = 2
-# TODO (Activity 2): define your own response type for the color sensor here.
-# It must match the value you add to TResponseType in packets.h.
 
 STATE_RUNNING = 0
 STATE_STOPPED = 1
@@ -83,7 +93,7 @@ TPACKET_FMT  = f'<BB2x{MAX_STR_LEN}s{PARAMS_COUNT}I'
 # RELIABLE FRAMING: magic number + XOR checksum
 # ----------------------------------------------------------------
 
-MAGIC = b'\xDE\xAD'          # 2-byte magic number (0xDEAD)
+MAGIC = b'\xDE\xAD'
 FRAME_SIZE = len(MAGIC) + TPACKET_SIZE + 1   # 2 + 100 + 1 = 103
 
 
@@ -142,23 +152,18 @@ def receiveFrame():
     MAGIC_LO = MAGIC[1]
 
     while True:
-        # Read and discard bytes until we see the first magic byte.
         b = _ser.read(1)
         if not b:
-            return None          # timeout
+            return None
         if b[0] != MAGIC_HI:
             continue
 
-        # Read the second magic byte.
         b = _ser.read(1)
         if not b:
             return None
         if b[0] != MAGIC_LO:
-            # Not the magic number; keep searching (don't skip the byte
-            # we just read in case it is the first byte of another frame).
             continue
 
-        # Magic matched; now read the TPacket body.
         raw = b''
         while len(raw) < TPACKET_SIZE:
             chunk = _ser.read(TPACKET_SIZE - len(raw))
@@ -166,13 +171,11 @@ def receiveFrame():
                 return None
             raw += chunk
 
-        # Read and verify the checksum.
         cs_byte = _ser.read(1)
         if not cs_byte:
             return None
         expected = computeChecksum(raw)
         if cs_byte[0] != expected:
-            # Checksum mismatch: corrupted packet, try to resync.
             continue
 
         return unpackTPacket(raw)
@@ -201,14 +204,7 @@ def isEstopActive():
 # ----------------------------------------------------------------
 
 def printPacket(pkt):
-    """Print a received TPacket in human-readable form.
-
-    The 'data' field carries an optional debug string from the Arduino.
-    When non-empty, it is printed automatically so you can embed debug
-    messages in any outgoing TPacket on the Arduino side (set pkt.data to
-    a null-terminated string up to 31 characters before calling sendFrame).
-    This works like Serial.print(), but sends output to the Pi terminal.
-    """
+    """Print a received TPacket in human-readable form."""
     global _estop_state
     ptype = pkt['packetType']
     cmd   = pkt['command']
@@ -223,11 +219,8 @@ def printPacket(pkt):
                 print("Status: RUNNING")
             else:
                 print("Status: STOPPED")
-                
+
         elif cmd == RESP_COLOUR_DATA:
-            # TODO (Activity 2): add an elif branch here to handle your color
-            # response.  Display the three channel frequencies in Hz, e.g.:
-            #   R: <params[0]> Hz, G: <params[1]> Hz, B: <params[2]> Hz
             r = pkt['params'][0]
             g = pkt['params'][1]
             b = pkt['params'][2]
@@ -235,9 +228,7 @@ def printPacket(pkt):
             print(f"Red={r} Hz")
             print(f"Green={g} Hz")
             print(f"Blue={b} Hz\n")
-        # Print the optional debug string from the data field.
-        # On the Arduino side, fill pkt.data before calling sendFrame() to
-        # send debug messages to this terminal (similar to Serial.print()).
+
         debug = pkt['data'].rstrip(b'\x00').decode('ascii', errors='replace')
         if debug:
             print(f"Arduino debug: {debug}")
@@ -254,20 +245,13 @@ def printPacket(pkt):
 # ----------------------------------------------------------------
 
 def handleColorCommand():
-    """
-    TODO (Activity 2): request a color reading from the Arduino and display it.
-    
-    Check the E-Stop state first; if stopped, refuse with a clear message.
-    Otherwise, send your color command to the Arduino.
-    """
+    """Request a color reading from the Arduino and display it."""
     if _estop_state == STATE_STOPPED:
         print("Refused: E-Stop is active. Color scan aborted.")
         return
     elif (_estop_state == STATE_RUNNING):
         print("Requesting Colour")
         sendCommand(COMMAND_GET_COLOUR)
-        
-    # TODO
     pass
 
 
@@ -275,26 +259,19 @@ def handleColorCommand():
 # ACTIVITY 3: CAMERA
 # ----------------------------------------------------------------
 
-# TODO (Activity 3): import the camera library provided (alex_camera.py).
-
-_camera = alex_camera.cameraOpen()    # TODO (Activity 3): open the camera (cameraOpen()) before first use.
-_frames_remaining = 5    # frames remaining before further captures are refused
+_camera = alex_camera.cameraOpen()
+_frames_remaining = 5
 
 
 def handleCameraCommand():
-    """
-    TODO (Activity 3): capture and display a greyscale frame.
-
-    Gate on E-Stop state and the remaining frame count.
-    Use captureGreyscaleFrame() and renderGreyscaleFrame() from alex_camera.
-    """
+    """Capture and display a greyscale frame."""
     global _frames_remaining
     if _estop_state == STATE_STOPPED:
         print("Refused: E-Stop is active. Camera scan aborted.")
-        
+
     elif _frames_remaining == 0:
         print("No more frames remaining")
-        
+
     else:
         _greyscaleframe = alex_camera.captureGreyscaleFrame(_camera)
         alex_camera.renderGreyscaleFrame(_greyscaleframe)
@@ -308,58 +285,138 @@ def handleCameraCommand():
 # ACTIVITY 4: LIDAR
 # ----------------------------------------------------------------
 
-# TODO (Activity 4): import from lidar.alex_lidar and lidar_example_cli_plot
-#   (lidar_example_cli_plot.py is in the same folder; alex_lidar.py is in lidar/).
-
-#from lidar.alex_lidar import alex_lidar
 from lidar_example_cli_plot import plot_single_scan
 
 def handleLidarCommand():
-    """
-    TODO (Activity 4): perform a single LIDAR scan and render it.
-    Gate on E-Stop state, then use the LIDAR library to capture one scan
-    and the CLI plot helpers to display it.
-    """
+    """Perform a single LIDAR scan and render it."""
+    if _estop_state == STATE_STOPPED:
+        print("Refused: E-Stop is active. LIDAR scan aborted.")
+    elif _estop_state == STATE_RUNNING:
+        plot_single_scan()
 
-    if _estop_state == STATE_STOPPED: print("Refused: E-Stop is active. LIDAR scan aborted.")
-    elif _estop_state == STATE_RUNNING: plot_single_scan()
+
+# ----------------------------------------------------------------
+# ADDED: MOTOR CONTROL
+# ----------------------------------------------------------------
+
+# Current speed value sent with COMMAND_SET_SPEED (0-255)
+_motor_speed = 200
+
+def handleMotorCommand(direction):
+    """Send a drive command to the Arduino. Refused if E-Stop is active."""
+    if _estop_state == STATE_STOPPED:
+        print("Refused: E-Stop is active.")
+        return
+    command_map = {
+        'w': COMMAND_FORWARD,
+        's': COMMAND_BACKWARD,
+        'a': COMMAND_TURN_LEFT,
+        'd': COMMAND_TURN_RIGHT,
+        ' ': COMMAND_STOP_MOTORS,
+    }
+    sendCommand(command_map[direction])
+
+def handleSpeedChange(increase: bool):
+    """Increase or decrease motor speed by 20, clamped to 0-255."""
+    global _motor_speed
+    if increase:
+        _motor_speed = min(_motor_speed + 20, 255)
+    else:
+        _motor_speed = max(_motor_speed - 20, 0)
+    params = [_motor_speed] + [0] * (PARAMS_COUNT - 1)
+    sendCommand(COMMAND_SET_SPEED, params=params)
+    print(f"Motor speed set to {_motor_speed}")
+
+
+# ----------------------------------------------------------------
+# ADDED: CLAW CONTROL
+# ----------------------------------------------------------------
+
+def handleClawCommand(line):
+    """
+    Send a claw servo command to the Arduino.
+    Keys:
+      i  base         (prompts for angle)
+      o  shoulder     (prompts for angle)
+      k  elbow        (prompts for angle)
+      n  gripper      (prompts for angle)
+      h  home all servos
+      v  set claw speed (prompts for ms-per-degree)
+    """
+    if line == 'h':
+        sendCommand(COMMAND_CLAW_HOME)
+        print("Claw homing.")
+        return
+
+    prompt_map = {
+        'i': (COMMAND_CLAW_BASE,     "Base angle (0-180)"),
+        'o': (COMMAND_CLAW_SHOULDER, "Shoulder angle (50-135)"),
+        'k': (COMMAND_CLAW_ELBOW,    "Elbow angle (105-180)"),
+        'n': (COMMAND_CLAW_GRIPPER,  "Gripper angle (90-105)"),
+        'v': (COMMAND_CLAW_SPEED,    "Claw speed ms-per-degree (1-999)"),
+    }
+    cmd_type, prompt = prompt_map[line]
+    try:
+        val = int(input(f"  {prompt}: ").strip())
+    except ValueError:
+        print("Invalid value.")
+        return
+    params = [val] + [0] * (PARAMS_COUNT - 1)
+    sendCommand(cmd_type, params=params)
 
 
 # ----------------------------------------------------------------
 # COMMAND-LINE INTERFACE
 # ----------------------------------------------------------------
 
-# User input -> action mapping:
-#   e  send a software E-Stop command to the Arduino (pre-wired)
-#   c  request color reading from the Arduino        (Activity 2 - implement yourself)
-#   p  capture and display a camera frame            (Activity 3 - implement yourself)
-#   l  perform a single LIDAR scan                   (Activity 4 - implement yourself)
-
-
 def handleUserInput(line):
     """
     Dispatch a single line of user input.
 
-    The 'e' case is pre-wired to send a software E-Stop command.
-    TODO (Activities 2, 3 & 4): add 'c' (color), 'p' (camera) and 'l' (LIDAR).
+    Keys:
+      e        E-Stop toggle
+      c        colour sensor
+      p        camera
+      l        LIDAR
+      w/s/a/d  drive forward / backward / left / right   (ADDED)
+      [space]  stop motors                                (ADDED)
+      +/-      increase / decrease motor speed            (ADDED)
+      i/o/k/n  claw base / shoulder / elbow / gripper    (ADDED)
+      h        claw home                                  (ADDED)
+      v        claw speed                                 (ADDED)
     """
     if line == 'e':
         print("Sending E-Stop command...")
         sendCommand(COMMAND_ESTOP, data=b'This is a debug message')
-    # TODO (Activity 2): add an elif branch for 'c' (color sensor) that calls handleColorCommand().
+
     elif line == 'c':
         print("Sending colour sensor command")
         handleColorCommand()
-    # TODO (Activities 3 & 4): add elif branches for 'p' (camera) and 'l' (LIDAR).
+
     elif line == "p":
         print("Sending Camera command")
         handleCameraCommand()
-        
+
     elif line == 'l':
-        print("Sending LIDAR command") 
+        print("Sending LIDAR command")
         handleLidarCommand()
+
+    # ADDED: motor commands
+    elif line in ('w', 's', 'a', 'd', ' '):
+        handleMotorCommand(line)
+
+    elif line == '+':
+        handleSpeedChange(increase=True)
+
+    elif line == '-':
+        handleSpeedChange(increase=False)
+
+    # ADDED: claw commands
+    elif line in ('i', 'o', 'k', 'n', 'h', 'v'):
+        handleClawCommand(line)
+
     else:
-        print(f"Unknown input: '{line}'. Valid: e, c, p, l")
+        print(f"Unknown input: '{line}'. Valid: e, c, p, l, w, s, a, d, [space], +/-, i, o, k, n, h, v")
 
 
 def runCommandInterface():
@@ -369,7 +426,7 @@ def runCommandInterface():
     Uses select.select() to simultaneously receive packets from the Arduino
     and read typed user input from stdin without either blocking the other.
     """
-    print("Sensor interface ready. Type e / c / p / l and press Enter.")
+    print("Sensor interface ready. Type e / c / p / l / w / s / a / d / [space] / + / - / i / o / k / n / h / v and press Enter.")
     print("Press Ctrl+C to exit.\n")
 
     while True:
@@ -400,7 +457,5 @@ if __name__ == '__main__':
     except KeyboardInterrupt:
         print("\nExiting.")
     finally:
-        # TODO (Activities 3 & 4): close the camera and disconnect the LIDAR here if you opened them.
         closeSerial()
         alex_camera.cameraClose(_camera)
-

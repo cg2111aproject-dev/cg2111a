@@ -1,5 +1,5 @@
 /*
- * packets.h
+ *
  * Studio 13: Sensor Mini-Project
  *
  * TPacket protocol: enums, struct, and framing constants.
@@ -24,6 +24,18 @@ typedef enum {
     COMMAND_ESTOP = 0,
     COMMAND_GET_COLOUR = 1,
     // TODO (Activity 2): add your own command type for the color sensor
+    COMMAND_FORWARD       = 2,
+    COMMAND_BACKWARD      = 3,
+    COMMAND_TURN_LEFT     = 4,
+    COMMAND_TURN_RIGHT    = 5,
+    COMMAND_STOP_MOTORS   = 6,
+    COMMAND_SET_SPEED     = 7,
+    COMMAND_CLAW_BASE     = 8,
+    COMMAND_CLAW_SHOULDER = 9,
+    COMMAND_CLAW_ELBOW    = 10,
+    COMMAND_CLAW_GRIPPER  = 11,
+    COMMAND_CLAW_HOME     = 12,
+    COMMAND_CLAW_SPEED    = 13,
 } TCommandType;
 
 typedef enum {
@@ -54,4 +66,6 @@ typedef struct {
 #define MAGIC_LO        0xAD
 #define TPACKET_SIZE    ((uint8_t)sizeof(TPacket))   // 100 bytes
 #define FRAME_SIZE      (2 + TPACKET_SIZE + 1)       // 103 bytes
+
+
 
