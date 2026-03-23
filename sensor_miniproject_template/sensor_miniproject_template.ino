@@ -37,10 +37,10 @@
 // =============================================================
 // Motor definitions
 // =============================================================
-#define FRONT_LEFT   4
+#define FRONT_LEFT   3
 #define FRONT_RIGHT  1
-#define BACK_LEFT    3
-#define BACK_RIGHT   2
+#define BACK_LEFT    2
+#define BACK_RIGHT   4
 
 AF_DCMotor motorFL(FRONT_LEFT);
 AF_DCMotor motorFR(FRONT_RIGHT);
@@ -51,27 +51,27 @@ static uint8_t motorSpeed = 200;
 
 typedef enum { MSTOP, GO, BACK, CCW, CW } DriveDir;
 
-static void move(int speed, DriveDir direction) {
+static void move(uint8_t speed, DriveDir direction) {
     motorFL.setSpeed(speed);
     motorFR.setSpeed(speed);
     motorBL.setSpeed(speed);
     motorBR.setSpeed(speed);
     switch (direction) {
         case GO:
-            motorFL.run(FORWARD);  motorFR.run(FORWARD);
-            motorBL.run(BACKWARD); motorBR.run(BACKWARD);
+            motorFL.run(BACKWARD);  motorFR.run(FORWARD);
+            motorBL.run(BACKWARD); motorBR.run(FORWARD);
             break;
         case BACK:
-            motorFL.run(BACKWARD); motorFR.run(BACKWARD);
-            motorBL.run(FORWARD);  motorBR.run(FORWARD);
+            motorFL.run(FORWARD); motorFR.run(BACKWARD);
+            motorBL.run(FORWARD); motorBR.run(BACKWARD);
             break;
         case CW:
-            motorFL.run(BACKWARD); motorFR.run(FORWARD);
-            motorBL.run(FORWARD);  motorBR.run(BACKWARD);
+            motorFL.run(BACKWARD); motorFR.run(BACKWARD);
+            motorBL.run(BACKWARD);  motorBR.run(BACKWARD);
             break;
         case CCW:
-            motorFL.run(FORWARD);  motorFR.run(BACKWARD);
-            motorBL.run(BACKWARD); motorBR.run(FORWARD);
+            motorFL.run(FORWARD);  motorFR.run(FORWARD);
+            motorBL.run(FORWARD); motorBR.run(FORWARD);
             break;
         case MSTOP:
         default:
@@ -203,27 +203,27 @@ volatile TState  buttonState = STATE_RUNNING;
 volatile bool    stateChanged = false;
 volatile uint8_t was_running = 0;
 
-ISR(INT5_vect) {
-    static unsigned long lastTime = 0;
-    unsigned long now = millis();
-    if (now - lastTime < DEBOUNCE_TIME) return;
-    lastTime = now;
+// ISR(INT5_vect) {
+//     static unsigned long lastTime = 0;
+//     unsigned long now = millis();
+//     if (now - lastTime < DEBOUNCE_TIME) return;
+//     lastTime = now;
 
-    bool pressed = (PINE & (1 << PINE5));
+//     bool pressed = (PINE & (1 << PINE5));
 
-    if (buttonState == STATE_RUNNING && pressed) {
-        buttonState  = STATE_STOPPED;
-        stateChanged = true;
-        was_running  = 1;
-        move(0, MSTOP);
-    } else if (was_running == 1 && buttonState == STATE_STOPPED && !pressed) {
-        was_running = 2;
-    } else if (was_running == 2 && buttonState == STATE_STOPPED && !pressed) {
-        buttonState  = STATE_RUNNING;
-        stateChanged = true;
-        was_running  = 0;
-    }
-}
+//     if (buttonState == STATE_RUNNING && pressed) {
+//         buttonState  = STATE_STOPPED;
+//         stateChanged = true;
+//         was_running  = 1;
+//         move(0, MSTOP);
+//     } else if (was_running == 1 && buttonState == STATE_STOPPED && !pressed) {
+//         was_running = 2;
+//     } else if (was_running == 2 && buttonState == STATE_STOPPED && !pressed) {
+//         buttonState  = STATE_RUNNING;
+//         stateChanged = true;
+//         was_running  = 0;
+//     }
+// }
 
 // =============================================================
 // Color sensor (TCS3200)
@@ -311,9 +311,9 @@ ISR(TIMER3_COMPA_vect) {
     }
 }
 
-ISR(INT4_vect) {
-    rising_edge_count++;
-}
+// ISR(INT4_vect) {
+//     rising_edge_count++;
+// }
 
 // =============================================================
 // Command handler
@@ -363,6 +363,10 @@ static void handleCommand(const TPacket *cmd) {
 
         case COMMAND_SET_SPEED:
             motorSpeed = (uint8_t)(cmd->params[0] & 0xFF);
+             motorFL.setSpeed(motorSpeed);
+             motorFR.setSpeed(motorSpeed);
+             motorBL.setSpeed(motorSpeed);
+             motorBR.setSpeed(motorSpeed);
             sendResponse(RESP_OK, motorSpeed, 0, 0);
             break;
 
@@ -421,6 +425,11 @@ static void handleCommand(const TPacket *cmd) {
 // =============================================================
 
 void setup() {
+    //motorFL.setSpeed(200);
+    //motorFL.run(FORWARD);
+    //delay(3000);
+    // ... rest of setup
+
 #if USE_BAREMETAL_SERIAL
     usartInit(103);
 #else
@@ -432,13 +441,15 @@ void setup() {
     PORTE |=  (1 << PORTE5);
     EICRB |=  (1 << ISC50);
     EICRB &= ~(1 << ISC51);
-    EIMSK |=  (1 << INT5);
+   // delay(100);
+   // buttonState = STATE_RUNNING;
+   // EIMSK |=  (1 << INT5);
 
     // Rising-edge counter for colour sensor (INT4)
     EICRB |= (1 << ISC41) | (1 << ISC40);
     EIMSK |= (1 << INT4);
 
-    // Colour-sensor GPIO (PORTA)
+   // Colour-sensor GPIO (PORTA)
     DDRA |= (1 << S0);
     DDRA |= (1 << S1);
     DDRA |= (1 << S2);
@@ -446,27 +457,30 @@ void setup() {
     DDRE &= ~(1 << S_OUT);
     PORTA = 0b0;
 
-    // Timer1: claw servo PWM, CTC, prescaler=8, TOP=39999 -> 20 ms period
-    TCCR1A = 0b0;
-    TIMSK1 = 0b0;
-    TCNT1  = 0;
-    OCR1A  = TOP_CHECKPOINT;
-    OCR1B  = B_CHECKPOINT;
-    TIMSK1 = (1 << OCIE1A) | (1 << OCIE1B);
-    TCCR1B = (1 << WGM12) | (1 << CS11);
+   //  Timer1: claw servo PWM, CTC, prescaler=8, TOP=39999 -> 20 ms period
+    // TCCR1A = 0b0;
+    // TIMSK1 = 0b0;
+    // TCNT1  = 0;
+    // OCR1A  = TOP_CHECKPOINT;
+    // OCR1B  = B_CHECKPOINT;
+    // TIMSK1 = (1 << OCIE1A) | (1 << OCIE1B);
+    // TCCR1B = (1 << WGM12) | (1 << CS11);
 
     // Claw servo GPIO (PORTC bits 0-3)
     DDRC  |=  (BASE_PIN | SHOULDER_PIN | ELBOW_PIN | GRIPPER_PIN);
     PORTC &= ~(BASE_PIN | SHOULDER_PIN | ELBOW_PIN | GRIPPER_PIN);
 
-    // Timer3: colour sensor window, CTC, prescaler=256, OCR3A=6249 -> 100 ms
-    TCCR3A = 0;
-    TCCR3B = (1 << WGM32) | (1 << CS32);
-    OCR3A  = 6249;
-    TCNT3  = 0;
-    TIMSK3 = 0;
+    // //Timer3: colour sensor window, CTC, prescaler=256, OCR3A=6249 -> 100 ms
+    // TCCR3A = 0;
+    // TCCR3B = (1 << WGM32) | (1 << CS32);
+    // OCR3A  = 6249;
+    // TCNT3  = 0;
+    // TIMSK3 = 0;
 
     sei();
+//  motorFL.setSpeed(200);
+//  motorFL.run(FORWARD);
+//move(200, GO);
 }
 
 void loop() {
