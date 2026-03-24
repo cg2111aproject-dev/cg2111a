@@ -7,6 +7,7 @@ Extends the communication framework from Studio 12 with:
   - Magic number + checksum framing for reliable packet delivery
   - A command-line interface that reads user commands while displaying
     live Arduino data
+  - Hold W/A/S/D to drive like a game character (tty raw mode)
 
 Packet framing format (103 bytes total):
   MAGIC (2 B) | TPacket (100 B) | CHECKSUM (1 B)
@@ -21,6 +22,8 @@ import serial
 import time
 import sys
 import select
+import tty        # <-- NEW
+import termios    # <-- NEW
 import alex_camera
 
 
@@ -61,14 +64,12 @@ PACKET_TYPE_MESSAGE  = 2
 
 COMMAND_ESTOP      = 0
 COMMAND_GET_COLOUR = 1
-# ADDED: motor drive commands
 COMMAND_FORWARD      = 2
 COMMAND_BACKWARD     = 3
 COMMAND_TURN_LEFT    = 4
 COMMAND_TURN_RIGHT   = 5
 COMMAND_STOP_MOTORS  = 6
 COMMAND_SET_SPEED    = 7
-# ADDED: claw commands
 COMMAND_CLAW_BASE     = 8
 COMMAND_CLAW_SHOULDER = 9
 COMMAND_CLAW_ELBOW    = 10
@@ -108,15 +109,6 @@ def computeChecksum(data: bytes) -> int:
 def packFrame(packetType, command, data=b'', params=None):
     """
     Build a framed packet: MAGIC | TPacket bytes | checksum.
-
-    Args:
-        packetType: integer packet type constant
-        command:    integer command / response constant
-        data:       bytes for the data field (padded/truncated to MAX_STR_LEN)
-        params:     list of PARAMS_COUNT uint32 values (default: all zeros)
-
-    Returns:
-        bytes of length FRAME_SIZE (103)
     """
     if params is None:
         params = [0] * PARAMS_COUNT
@@ -141,12 +133,7 @@ def unpackTPacket(raw):
 def receiveFrame():
     """
     Read bytes from the serial port until a valid framed packet is found.
-
-    Synchronises to the magic number, reads the TPacket body, then
-    validates the checksum.  Discards corrupt or out-of-sync bytes.
-
-    Returns:
-        A packet dict (see unpackTPacket), or None on timeout / error.
+    Returns a packet dict, or None on timeout / error.
     """
     MAGIC_HI = MAGIC[0]
     MAGIC_LO = MAGIC[1]
@@ -195,7 +182,6 @@ _estop_state = STATE_RUNNING
 
 
 def isEstopActive():
-    """Return True if the E-Stop is currently active (system stopped)."""
     return _estop_state == STATE_STOPPED
 
 
@@ -211,33 +197,32 @@ def printPacket(pkt):
 
     if ptype == PACKET_TYPE_RESPONSE:
         if cmd == RESP_OK:
-            print("Response: OK")
+            print("\r Response: OK                    ")
         elif cmd == RESP_STATUS:
             state = pkt['params'][0]
             _estop_state = state
             if state == STATE_RUNNING:
-                print("Status: RUNNING")
+                print("\r Status: RUNNING                  ")
             else:
-                print("Status: STOPPED")
-
+                print("\r Status: STOPPED                  ")
         elif cmd == RESP_COLOUR_DATA:
             r = pkt['params'][0]
             g = pkt['params'][1]
             b = pkt['params'][2]
-            print(f"\nColor: ")
-            print(f"Red={r} Hz")
-            print(f"Green={g} Hz")
-            print(f"Blue={b} Hz\n")
+            print(f"\r\nColor:")
+            print(f"\r  Red={r} Hz")
+            print(f"\r  Green={g} Hz")
+            print(f"\r  Blue={b} Hz\n")
 
         debug = pkt['data'].rstrip(b'\x00').decode('ascii', errors='replace')
         if debug:
-            print(f"Arduino debug: {debug}")
+            print(f"\r Arduino debug: {debug}")
 
     elif ptype == PACKET_TYPE_MESSAGE:
         msg = pkt['data'].rstrip(b'\x00').decode('ascii', errors='replace')
-        print(f"Arduino: {msg}")
+        print(f"\r Arduino: {msg}")
     else:
-        print(f"Packet: type={ptype}, cmd={cmd}")
+        print(f"\r Packet: type={ptype}, cmd={cmd}")
 
 
 # ----------------------------------------------------------------
@@ -245,14 +230,11 @@ def printPacket(pkt):
 # ----------------------------------------------------------------
 
 def handleColorCommand():
-    """Request a color reading from the Arduino and display it."""
     if _estop_state == STATE_STOPPED:
-        print("Refused: E-Stop is active. Color scan aborted.")
+        print("\r Refused: E-Stop is active.")
         return
-    elif (_estop_state == STATE_RUNNING):
-        print("Requesting Colour")
-        sendCommand(COMMAND_GET_COLOUR)
-    pass
+    print("\r Requesting colour...")
+    sendCommand(COMMAND_GET_COLOUR)
 
 
 # ----------------------------------------------------------------
@@ -264,21 +246,16 @@ _frames_remaining = 5
 
 
 def handleCameraCommand():
-    """Capture and display a greyscale frame."""
     global _frames_remaining
     if _estop_state == STATE_STOPPED:
-        print("Refused: E-Stop is active. Camera scan aborted.")
-
+        print("\r Refused: E-Stop is active.")
     elif _frames_remaining == 0:
-        print("No more frames remaining")
-
+        print("\r No more frames remaining.")
     else:
         _greyscaleframe = alex_camera.captureGreyscaleFrame(_camera)
         alex_camera.renderGreyscaleFrame(_greyscaleframe)
         _frames_remaining -= 1
-        print(f"Frames Remaining: {_frames_remaining}")
-
-    return
+        print(f"\r Frames remaining: {_frames_remaining}")
 
 
 # ----------------------------------------------------------------
@@ -288,36 +265,27 @@ def handleCameraCommand():
 from lidar_example_cli_plot import plot_single_scan
 
 def handleLidarCommand():
-    """Perform a single LIDAR scan and render it."""
     if _estop_state == STATE_STOPPED:
-        print("Refused: E-Stop is active. LIDAR scan aborted.")
-    elif _estop_state == STATE_RUNNING:
+        print("\r Refused: E-Stop is active.")
+    else:
         plot_single_scan()
 
 
 # ----------------------------------------------------------------
-# ADDED: MOTOR CONTROL
+# MOTOR CONTROL
 # ----------------------------------------------------------------
 
-# Current speed value sent with COMMAND_SET_SPEED (0-255)
 _motor_speed = 200
 
-def handleMotorCommand(direction):
-    """Send a drive command to the Arduino. Refused if E-Stop is active."""
-    if _estop_state == STATE_STOPPED:
-        print("Refused: E-Stop is active.")
-        return
-    command_map = {
-        'w': COMMAND_FORWARD,
-        's': COMMAND_BACKWARD,
-        'a': COMMAND_TURN_LEFT,
-        'd': COMMAND_TURN_RIGHT,
-        ' ': COMMAND_STOP_MOTORS,
-    }
-    sendCommand(command_map[direction])
+# Maps WASD keys to Arduino drive commands
+DRIVE_KEYS = {                       # <-- NEW: used by runCommandInterface
+    'w': COMMAND_FORWARD,
+    's': COMMAND_BACKWARD,
+    'a': COMMAND_TURN_LEFT,
+    'd': COMMAND_TURN_RIGHT,
+}
 
 def handleSpeedChange(increase: bool):
-    """Increase or decrease motor speed by 20, clamped to 0-255."""
     global _motor_speed
     if increase:
         _motor_speed = min(_motor_speed + 20, 255)
@@ -325,27 +293,17 @@ def handleSpeedChange(increase: bool):
         _motor_speed = max(_motor_speed - 20, 0)
     params = [_motor_speed] + [0] * (PARAMS_COUNT - 1)
     sendCommand(COMMAND_SET_SPEED, params=params)
-    print(f"Motor speed set to {_motor_speed}")
+    print(f"\r Motor speed set to {_motor_speed}")
 
 
 # ----------------------------------------------------------------
-# ADDED: CLAW CONTROL
+# CLAW CONTROL
 # ----------------------------------------------------------------
 
 def handleClawCommand(line):
-    """
-    Send a claw servo command to the Arduino.
-    Keys:
-      i  base         (prompts for angle)
-      o  shoulder     (prompts for angle)
-      k  elbow        (prompts for angle)
-      n  gripper      (prompts for angle)
-      h  home all servos
-      v  set claw speed (prompts for ms-per-degree)
-    """
     if line == 'h':
         sendCommand(COMMAND_CLAW_HOME)
-        print("Claw homing.")
+        print("\r Claw homing.")
         return
 
     prompt_map = {
@@ -356,94 +314,114 @@ def handleClawCommand(line):
         'v': (COMMAND_CLAW_SPEED,    "Claw speed ms-per-degree (1-999)"),
     }
     cmd_type, prompt = prompt_map[line]
+
+    # Temporarily restore normal terminal mode so input() works
+    fd = sys.stdin.fileno()
+    old = termios.tcgetattr(fd)
+    termios.tcsetattr(fd, termios.TCSADRAIN, old)
     try:
-        val = int(input(f"  {prompt}: ").strip())
+        val = int(input(f"\r  {prompt}: ").strip())
     except ValueError:
-        print("Invalid value.")
+        print("\r Invalid value.")
         return
+    finally:
+        tty.setraw(fd)   # back to raw mode after input
+
     params = [val] + [0] * (PARAMS_COUNT - 1)
     sendCommand(cmd_type, params=params)
 
 
 # ----------------------------------------------------------------
-# COMMAND-LINE INTERFACE
+# SINGLE-TAP HANDLER  <-- NEW: replaces handleUserInput for non-drive keys
 # ----------------------------------------------------------------
 
-def handleUserInput(line):
-    """
-    Dispatch a single line of user input.
-
-    Keys:
-      e        E-Stop toggle
-      c        colour sensor
-      p        camera
-      l        LIDAR
-      w/s/a/d  drive forward / backward / left / right   (ADDED)
-      [space]  stop motors                                (ADDED)
-      +/-      increase / decrease motor speed            (ADDED)
-      i/o/k/n  claw base / shoulder / elbow / gripper    (ADDED)
-      h        claw home                                  (ADDED)
-      v        claw speed                                 (ADDED)
-    """
-    if line == 'e':
-        print("Sending E-Stop command...")
+def _handle_tap(ch):
+    """Dispatch a single keypress for non-drive commands."""
+    if ch == 'e':
+        print("\r Sending E-Stop...")
         sendCommand(COMMAND_ESTOP, data=b'This is a debug message')
-
-    elif line == 'c':
-        print("Sending colour sensor command")
+    elif ch == 'c':
         handleColorCommand()
-
-    elif line == "p":
-        print("Sending Camera command")
+    elif ch == 'p':
         handleCameraCommand()
-
-    elif line == 'l':
-        print("Sending LIDAR command")
+    elif ch == 'l':
         handleLidarCommand()
-
-    # ADDED: motor commands
-    elif line in ('w', 's', 'a', 'd', ' '):
-        handleMotorCommand(line)
-
-    elif line == '+':
+    elif ch == '+':
         handleSpeedChange(increase=True)
-
-    elif line == '-':
+    elif ch == '-':
         handleSpeedChange(increase=False)
-
-    # ADDED: claw commands
-    elif line in ('i', 'o', 'k', 'n', 'h', 'v'):
-        handleClawCommand(line)
-
+    elif ch == ' ':
+        sendCommand(COMMAND_STOP_MOTORS)
+        print("\r Motors stopped.")
+    elif ch in ('i', 'o', 'k', 'n', 'h', 'v'):
+        handleClawCommand(ch)
     else:
-        print(f"Unknown input: '{line}'. Valid: e, c, p, l, w, s, a, d, [space], +/-, i, o, k, n, h, v")
+        print(f"\r Unknown key: '{ch}'. Valid: e c p l w s a d [space] + - i o k n h v q")
 
+
+# ----------------------------------------------------------------
+# COMMAND-LINE INTERFACE  <-- REPLACED with raw-tty hold-to-drive
+# ----------------------------------------------------------------
 
 def runCommandInterface():
     """
-    Main command loop.
+    Main loop using raw terminal mode so WASD drive the robot
+    while held — no Enter needed, like a game character.
 
-    Uses select.select() to simultaneously receive packets from the Arduino
-    and read typed user input from stdin without either blocking the other.
+    Key repeat (fired by the OS while a key is held) keeps
+    re-sending the drive command every ~20 ms.  When the key is
+    released, select() times out after 80 ms and stops the motors.
     """
-    print("Sensor interface ready. Type e / c / p / l / w / s / a / d / [space] / + / - / i / o / k / n / h / v and press Enter.")
-    print("Press Ctrl+C to exit.\n")
+    print("Hold W/A/S/D to drive. Tap E/C/P/L/+/-/etc for commands. Q to quit.\n")
 
-    while True:
-        if _ser.in_waiting >= FRAME_SIZE:
-            pkt = receiveFrame()
-            if pkt:
-                printPacket(pkt)
+    fd = sys.stdin.fileno()
+    old_settings = termios.tcgetattr(fd)
+    last_drive_key = None
 
-        rlist, _, _ = select.select([sys.stdin], [], [], 0)
-        if rlist:
-            line = sys.stdin.readline().strip().lower()
-            if not line:
-                time.sleep(0.05)
+    try:
+        tty.setraw(fd)          # raw mode: characters arrive immediately, no echo
+
+        while True:
+            # --- receive packets from Arduino ---
+            if _ser.in_waiting >= FRAME_SIZE:
+                pkt = receiveFrame()
+                if pkt:
+                    printPacket(pkt)
+
+            # --- check for a keypress (80 ms window) ---
+            r, _, _ = select.select([sys.stdin], [], [], 0.08)
+
+            if not r:
+                # Nothing pressed — stop if we were driving
+                if last_drive_key is not None:
+                    sendCommand(COMMAND_STOP_MOTORS)
+                    last_drive_key = None
                 continue
-            handleUserInput(line)
 
-        time.sleep(0.05)
+            ch = sys.stdin.read(1).lower()
+
+            if ch == 'q':
+                break
+
+            elif ch in DRIVE_KEYS:
+                if _estop_state == STATE_STOPPED:
+                    print("\r Refused: E-Stop is active.")
+                    continue
+                # Only send if direction changed (avoids serial spam while held)
+                if ch != last_drive_key:
+                    sendCommand(DRIVE_KEYS[ch])
+                    last_drive_key = ch
+
+            else:
+                # Non-drive key: stop motors first, then handle the tap
+                if last_drive_key is not None:
+                    sendCommand(COMMAND_STOP_MOTORS)
+                    last_drive_key = None
+                _handle_tap(ch)
+
+    finally:
+        termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)  # restore terminal
+        sendCommand(COMMAND_STOP_MOTORS)   # safety stop on exit
 
 
 # ----------------------------------------------------------------

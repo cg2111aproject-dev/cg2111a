@@ -37,9 +37,9 @@
 // =============================================================
 // Motor definitions
 // =============================================================
-#define FRONT_LEFT   3
+#define FRONT_LEFT   2
 #define FRONT_RIGHT  1
-#define BACK_LEFT    2
+#define BACK_LEFT    3
 #define BACK_RIGHT   4
 
 AF_DCMotor motorFL(FRONT_LEFT);
@@ -498,4 +498,4 @@ void loop() {
     if (receiveFrame(&incoming)) {
         handleCommand(&incoming);
     }
-}
+    }

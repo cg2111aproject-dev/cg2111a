@@ -37,7 +37,7 @@
 #if USE_BAREMETAL_SERIAL
 
 // Power-of-2 sizes allow fast wrap-around with bitwise AND.
-#define TX_BUFFER_SIZE  128
+#define TX_BUFFER_SIZE  256
 #define TX_BUFFER_MASK  (TX_BUFFER_SIZE - 1)
 #define RX_BUFFER_SIZE  256
 #define RX_BUFFER_MASK  (RX_BUFFER_SIZE - 1)
@@ -75,11 +75,14 @@ void usartInit(uint16_t ubrr) {
  * interrupt (UDRIE0) and return true.  Must NOT block.
  */
 bool txEnqueue(const uint8_t *data, uint8_t len) {
-    // Calculate current free space
+    cli();  // disable interrupts
     uint8_t used = (tx_head - tx_tail) & TX_BUFFER_MASK;
     uint8_t free = TX_BUFFER_SIZE - 1 - used;
 
-    if (len > free) return false;
+    if (len > free) {
+        sei();
+        return false;
+    }
 
     for (uint8_t i = 0; i < len; i++) {
         tx_buf[tx_head] = data[i];
@@ -87,6 +90,7 @@ bool txEnqueue(const uint8_t *data, uint8_t len) {
     }
 
     UCSR0B |= (1 << UDRIE0);
+    sei();
     return true;
 }
 
