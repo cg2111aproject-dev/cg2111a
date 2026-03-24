@@ -43,14 +43,18 @@ _GLYPH_FREE       = '\u2591'  # light shade
 _GLYPH_FREE_CLEAR = '\u25e6'  # white bullet
 _GLYPH_ROBOT      = '\u25c9'  # fisheye (robot marker)
 
-# Rich markup style strings for each map state.
-_STYLE_WALL       = 'bold bright_red'
-_STYLE_WALL_SOFT  = 'red'
-_STYLE_FRONTIER   = 'yellow'
+# Path history glyph and style
+_GLYPH_PATH = '\u00b7'        # small dot for past positions
+_STYLE_PATH = 'bold bright_magenta'
+
+# Rich markup style strings — improved color scheme for clarity
+_STYLE_WALL       = 'bold white on red'   # white text on red bg = very visible walls
+_STYLE_WALL_SOFT  = 'bold red'
+_STYLE_FRONTIER   = 'bold yellow'
 _STYLE_UNKNOWN    = 'bright_black'
 _STYLE_FREE       = 'green'
-_STYLE_FREE_CLEAR = 'bright_green'
-_STYLE_ROBOT      = 'bold cyan'
+_STYLE_FREE_CLEAR = 'bold bright_green'
+_STYLE_ROBOT      = 'bold bright_cyan'
 
 # Direction arrows for the robot marker (8 compass octants).
 # Index 0 = east (positive x), then CCW: NE, N, NW, W, SW, S, SE.
@@ -69,7 +73,7 @@ _VIS_TABLE = [
     (100, _GLYPH_WALL_SOFT,  _STYLE_WALL_SOFT),
     (120, _GLYPH_FRONTIER,   _STYLE_FRONTIER),
     (145, _GLYPH_UNKNOWN,    _STYLE_UNKNOWN),
-    # (220, _GLYPH_FREE,       _STYLE_FREE),
+    (220, _GLYPH_FREE,       _STYLE_FREE),
     (256, _GLYPH_FREE_CLEAR, _STYLE_FREE_CLEAR),
 ]
 
