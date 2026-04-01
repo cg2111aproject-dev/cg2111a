@@ -26,6 +26,7 @@ import tty        # <-- NEW
 import termios    # <-- NEW
 import alex_camera
 
+from second_terminal import relay
 
 # ----------------------------------------------------------------
 # SERIAL PORT SETUP
@@ -42,6 +43,7 @@ def openSerial():
     global _ser
     _ser = serial.Serial(PORT, BAUDRATE, timeout=5)
     print(f"Opened {PORT} at {BAUDRATE} baud. Waiting for Arduino...")
+    #relay.checkSecondTerminal(_ser)
     time.sleep(2)
     print("Ready.\n")
 
@@ -387,6 +389,7 @@ def runCommandInterface():
                 pkt = receiveFrame()
                 if pkt:
                     printPacket(pkt)
+                    relay.onPacketReceived(packFrame(pkt['packetType'], pkt['command'],pkt['data'], pkt['params']))
 
             # --- check for a keypress (80 ms window) ---
             r, _, _ = select.select([sys.stdin], [], [], 0.08)
@@ -397,6 +400,8 @@ def runCommandInterface():
                     sendCommand(COMMAND_STOP_MOTORS)
                     last_drive_key = None
                 continue
+
+            relay.checkSecondTerminal(_ser)
 
             ch = sys.stdin.read(1).lower()
 
@@ -430,6 +435,7 @@ def runCommandInterface():
 
 if __name__ == '__main__':
     openSerial()
+    relay.start()
     try:
         runCommandInterface()
     except KeyboardInterrupt:
@@ -437,3 +443,4 @@ if __name__ == '__main__':
     finally:
         closeSerial()
         alex_camera.cameraClose(_camera)
+        relay.shutdown()
