@@ -321,26 +321,41 @@ class SlamApp(App[None]):
             run_glyph = ''
             run_style = ''
 
-            for sc in range(disp_cols):
-                # --- RECTANGULAR ARROW LOGIC (6x3 solid block of arrows) ---
-                # Checks if current pixel (sr, sc) is inside the 3x6 bounds
-                is_robot_rect = (
-                    robot_visible and 
-                    (robot_sc - 1 <= sc <= robot_sc + 1) and  # Width: 3 pixels
-                    (robot_sr - 4 <= sr <= robot_sr + 1)      # Length: 6 pixels
-                )
+            # --- ROTATED RECTANGULAR ROBOT LOGIC ---
+                if robot_visible:
+                    # 1. Translate pixel to be relative to robot center (0,0)
+                    # We use (sc - robot_sc) and (sr - robot_sr)
+                    dx = sc - robot_sc
+                    dy = sr - robot_sr
+
+                    # 2. Rotate the pixel coordinate BACKWARDS by theta 
+                    # to see where it sits relative to the robot's body.
+                    import math
+                    # Convert theta to radians (BreezySLAM theta is CCW)
+                    # Note: We adjust for the 90deg display rotation
+                    rad = math.radians(snapshot['theta_deg'] + 90)
+                    cos_t = math.cos(rad)
+                    sin_t = math.sin(rad)
+
+                    # Standard 2D rotation matrix: 
+                    # local_x is 'sideways', local_y is 'forward/backward'
+                    local_x = dx * cos_t + dy * sin_t
+                    local_y = -dx * sin_t + dy * cos_t
+
+                    # 3. Check if this pixel is inside the 3x6 local footprint
+                    # Width (Side-to-Side): 1 pixel each way
+                    # Length (Front-to-Back): 4 ahead (-4), 1 behind (+1)
+                    # Note: local_y is negative for 'ahead' in this coordinate setup
+                    is_robot_rect = (-1.5 < local_x < 1.5) and (-4.5 < local_y < 1.5)
+                else:
+                    is_robot_rect = False
 
                 if is_robot_rect:
                     if run_glyph:
                         text.append(run_glyph, style=run_style)
                         run_glyph = ''
-                    # Fill the entire rectangle with the directional arrow
-                    text.append(
-                        robot_glyph(snapshot['theta_deg']),
-                        style=_STYLE_ROBOT,
-                    )
+                    text.append(robot_glyph(snapshot['theta_deg']), style=_STYLE_ROBOT)
                     continue
-                # --- END RECTANGULAR LOGIC ---
 
                 if (sr, sc) in path_cells:
                     vis = int(row_data[sc])
