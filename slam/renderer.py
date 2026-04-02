@@ -9,15 +9,6 @@ BreezySLAM occupancy byte convention:
   0   = confirmed wall / obstacle
   127 = unknown (not yet visited)
   255 = confirmed free space
-
-The rendering pipeline:
-  1. A region of the map (in pixel coordinates) is identified based on the
-     current zoom level and pan offset.
-  2. _render_map_numpy() downsamples that region to the terminal display size
-     using a min-sampling strategy so that thin walls are never diluted by
-     surrounding free space.
-  3. Each sampled value is looked up in _VIS_TABLE to get a (glyph, style)
-     pair for the Rich Text renderer.
 """
 
 from __future__ import annotations
@@ -47,7 +38,7 @@ _GLYPH_ROBOT      = '\u25c9'  # fisheye (robot marker)
 _GLYPH_PATH = '\u00b7'        # small dot for past positions
 _STYLE_PATH = 'bold bright_magenta'
 
-# Rich markup style strings — improved color scheme for clarity
+# Rich markup style strings
 _STYLE_WALL       = 'bold white on red'   # white text on red bg = very visible walls
 _STYLE_WALL_SOFT  = 'bold red'
 _STYLE_FRONTIER   = 'bold yellow'
@@ -57,7 +48,7 @@ _STYLE_FREE_CLEAR = 'bold bright_green'
 _STYLE_ROBOT      = 'bold bright_cyan'
 
 # Direction arrows for the robot marker (8 compass octants).
-# Index 0 = east (positive x), then CCW: NE, N, NW, W, SW, S, SE.
+# Index 0 = east (right), then CCW: NE, N, NW, W, SW, S, SE.
 _DIRECTION_GLYPHS = ['\u2192', '\u2197', '\u2191', '\u2196',
                      '\u2190', '\u2199', '\u2193', '\u2198']
 
@@ -66,8 +57,6 @@ _DIRECTION_GLYPHS = ['\u2192', '\u2197', '\u2191', '\u2196',
 # Threshold / glyph / style lookup table
 # ===========================================================================
 
-# Each row covers occupancy bytes up to (but not including) the threshold.
-# Ordered from darkest (wall) to lightest (clear free space).
 _VIS_TABLE = [
     (40,  _GLYPH_WALL,       _STYLE_WALL),
     (100, _GLYPH_WALL_SOFT,  _STYLE_WALL_SOFT),
@@ -77,8 +66,6 @@ _VIS_TABLE = [
     (256, _GLYPH_FREE_CLEAR, _STYLE_FREE_CLEAR),
 ]
 
-# Pre-build a 256-element lookup array: byte value -> _VIS_TABLE index.
-# This avoids a Python loop per pixel during rendering.
 _VIS_LUT = np.empty(256, dtype=np.uint8)
 for _i in range(256):
     for _j, (_thresh, _, _) in enumerate(_VIS_TABLE):
@@ -92,18 +79,7 @@ for _i in range(256):
 # ===========================================================================
 
 def mm_to_map_px(x_mm: float, y_mm: float) -> tuple[float, float]:
-    """Convert a BreezySLAM pose (mm) to map array indices (col, row).
-
-    BreezySLAM coordinate convention:
-      - x_mm increases to the right  -> col increases to the right
-      - y_mm increases upward        -> row must be flipped (row 0 is the top)
-
-    After the standard conversion we apply the same transform used in
-    render_map_numpy: vertical flip then 90-degree CCW rotation.  The net
-    result is:
-      new_col = (MAP_SIZE_PIXELS - 1) - y_px   (north -> col 0, left)
-      new_row = (MAP_SIZE_PIXELS - 1) - x_px   (east  -> row 0, top)
-    """
+    """Convert a BreezySLAM pose (mm) to map array indices (col, row)."""
     px_per_mm = MAP_SIZE_PIXELS / (MAP_SIZE_METERS * 1000.0)
     old_col = x_mm * px_per_mm
     old_row = (MAP_SIZE_PIXELS - 1) - (y_mm * px_per_mm)
@@ -128,15 +104,15 @@ def pan_step_mm(zoom_idx: int) -> float:
 def robot_glyph(theta_deg: float) -> str:
     """Choose a directional arrow for the robot marker.
 
-    BreezySLAM's theta is measured counter-clockwise from the positive-x axis
-    (mathematical convention).  The display is rotated 90 degrees CCW from the
-    default orientation, so we add 2 octants (90 degrees) to the index.
-
-    _DIRECTION_GLYPHS is indexed as:
-      0 = east (right), 1 = NE, 2 = north (up), 3 = NW,
-      4 = west (left),  5 = SW, 6 = south (down), 7 = SE
+    To rotate the icon 90 degrees clockwise from your current 'pointing left' 
+    state, we remove the '+ 2' octant offset. 
+    
+    _DIRECTION_GLYPHS index:
+      0 = east (right), 2 = north (up), 4 = west (left), 6 = south (down)
     """
-    idx = (int(round(theta_deg / 45.0)) + 2) % 8
+    # Original was (int(round(theta_deg / 45.0)) + 2) % 8
+    # Removing '+ 2' octants performs a 90-degree clockwise shift.
+    idx = int(round(theta_deg / 45.0)) % 8
     return _DIRECTION_GLYPHS[idx]
 
 
@@ -150,37 +126,13 @@ def render_map_numpy(
     row_lo: float, row_hi: float,
     disp_cols: int, disp_rows: int,
 ) -> np.ndarray:
-    """Downsample a rectangular region of the map into a display-sized array.
-
-    Uses min-sampling: within each display cell the minimum occupancy value
-    (i.e. the most wall-like pixel) is taken.  This ensures that thin walls
-    are never diluted by surrounding free-space pixels.
-
-    The map is rotated 90 degrees CCW before sampling, matching the coordinate
-    rotation applied in mm_to_map_px().
-
-    Returns a (disp_rows, disp_cols) uint8 array of indices into _VIS_TABLE.
-
-    Parameters
-    ----------
-    mapbytes  : raw occupancy map bytes (MAP_SIZE_PIXELS * MAP_SIZE_PIXELS)
-    col_lo/hi : column pixel range of the map region to display
-    row_lo/hi : row pixel range of the map region to display
-    disp_cols : number of terminal columns available
-    disp_rows : number of terminal rows available
-    """
+    """Downsample a rectangular region of the map into a display-sized array."""
     maparray = np.frombuffer(mapbytes, dtype=np.uint8).reshape(
         MAP_SIZE_PIXELS, MAP_SIZE_PIXELS
     )
 
-    # BreezySLAM stores the map with row 0 = y=0 (south).  Flip vertically
-    # first so that north (y=max) moves to row 0, then rotate 90 degrees CCW
-    # so that east (+x, the default robot-forward direction) ends up at the
-    # top of the display.  The net transform is (y_px, x_px) ->
-    # (N-1-x_px, N-1-y_px), which matches mm_to_map_px exactly.
     maparray = np.rot90(np.flipud(maparray), k=1)
 
-    # Sample up to 6 evenly-spaced points per display cell in each dimension.
     samples_per_cell = 6
 
     r_centers = np.linspace(row_lo, row_hi, disp_rows * samples_per_cell,
@@ -188,18 +140,13 @@ def render_map_numpy(
     c_centers = np.linspace(col_lo, col_hi, disp_cols * samples_per_cell,
                             endpoint=False)
 
-    # Clip to valid pixel indices.
     r_idx = np.clip(r_centers.astype(np.int32), 0, MAP_SIZE_PIXELS - 1)
     c_idx = np.clip(c_centers.astype(np.int32), 0, MAP_SIZE_PIXELS - 1)
 
-    # Extract the full sample grid: shape (disp_rows*S, disp_cols*S).
     sampled = maparray[np.ix_(r_idx, c_idx)]
 
-    # Reshape to (disp_rows, S, disp_cols, S) then take the minimum over
-    # the two sample dimensions to preserve walls.
     sampled = sampled.reshape(disp_rows, samples_per_cell,
                               disp_cols, samples_per_cell)
-    cell_min = sampled.min(axis=(1, 3))  # shape: (disp_rows, disp_cols)
+    cell_min = sampled.min(axis=(1, 3))
 
-    # Map each byte value to a _VIS_TABLE index via the pre-built LUT.
     return _VIS_LUT[cell_min]
