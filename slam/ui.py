@@ -2,31 +2,7 @@
 """
 ui.py - Terminal map viewer using the Textual framework.
 
-Displays the BreezySLAM occupancy map as a colour Unicode block-character
-grid in the terminal.  The map updates in real time as the robot moves.
-
-Keyboard controls
------------------
-  + / =     Zoom in (show a smaller area in more detail)
-  - / _     Zoom out (zoom level 1 shows the full map)
-  1-5       Jump directly to zoom levels 1-5
-  arrows    Pan the zoomed view
-  h j k l   Pan (vi-style: left, down, up, right)
-  c         Re-centre the view on the robot
-  p         Pause / resume SLAM updates
-  s         Save map to file (also auto-saves on quit)
-  q         Quit (also Ctrl-C)
-
-Map legend
-----------
-  white on red  full block  wall / confirmed obstacle
-  bold red      dark shade  near a wall
-  bold yellow   mid shade   frontier (mixed free/occupied)
-  dark grey     middle dot  unknown / not yet visited
-  green         light shade probable free space
-  bright green  white dot   confirmed free space
-  cyan          fisheye     robot estimated position
-  magenta       small dot   path history
+Modified to display a long robot body: 4 pixels ahead and 1 pixel behind.
 """
 
 from __future__ import annotations
@@ -59,11 +35,8 @@ from renderer import (
     mm_to_map_px, pan_step_mm, robot_glyph, render_map_numpy,
 )
 
-# Maximum number of path history points to keep in memory.
 _MAX_PATH_HISTORY = 2000
-# Minimum distance (mm) the robot must move before a new path point is recorded.
 _PATH_RECORD_DIST_MM = 50
-
 
 class SlamApp(App[None]):
     """Full-screen Textual application that displays the SLAM map."""
@@ -134,9 +107,7 @@ class SlamApp(App[None]):
 
     def __init__(self) -> None:
         super().__init__()
-        # Shared state object passed to the SLAM process.
         self.pss = ProcessSharedState()
-        # SLAM runs in a separate child process so it has its own GIL.
         self.slam_proc = multiprocessing.Process(
             target=run_slam_process,
             args=(self.pss,),
@@ -146,22 +117,13 @@ class SlamApp(App[None]):
         self.zoom_idx = DEFAULT_ZOOM
         self.pan_x_mm = 0.0
         self.pan_y_mm = 0.0
-        # Cache the last render key so we skip redraws when nothing changed.
         self._last_render_key: tuple = ()
         self._cached_robot_visible = False
-
-        # Path history: list of (x_mm, y_mm) positions the robot has visited.
         self._path_history: list[tuple[float, float]] = []
         self._last_pose: tuple[float, float] = (0.0, 0.0)
-
-        # Last save message to show in status bar.
         self._save_message: str = ''
         self._save_message_until: float = 0.0
-
-        # Auto-follow: pan the view when the robot nears the edge.
-        # Disabled temporarily when the user manually pans; press c to re-enable.
         self._auto_follow: bool = True
-        # How close to the edge (as a fraction of view half-width) before panning.
         self._follow_edge_frac: float = 0.25
 
     def compose(self) -> ComposeResult:
@@ -177,17 +139,12 @@ class SlamApp(App[None]):
         self.set_interval(1.0 / UI_REFRESH_HZ, self._refresh_view)
 
     def on_unmount(self) -> None:
-        # Signal the SLAM process to stop, then wait for it to exit cleanly.
         self.pss.stop_event.set()
         if self.slam_proc.is_alive():
             self.slam_proc.join(timeout=3.0)
         if self.slam_proc.is_alive():
             self.slam_proc.terminate()
         self.pss.cleanup()
-
-    # -----------------------------------------------------------------------
-    # Keyboard actions
-    # -----------------------------------------------------------------------
 
     def action_zoom_in(self) -> None:
         self.zoom_idx = min(self.zoom_idx + 1, len(ZOOM_HALF_M) - 1)
@@ -230,16 +187,11 @@ class SlamApp(App[None]):
         self.pss.paused.value = not self.pss.paused.value
 
     def action_save_map(self) -> None:
-        """Save the current map and path history to disk."""
         snapshot = self._snapshot()
         ts = time.strftime('%Y%m%d_%H%M%S')
-
-        # Save raw map bytes — can be reloaded with view_map.py
         map_path = f'slam_map_{ts}.bin'
         with open(map_path, 'wb') as f:
             f.write(snapshot['mapbytes'])
-
-        # Save pose and path history as JSON alongside the .bin file
         meta_path = f'slam_map_{ts}.json'
         with open(meta_path, 'w') as f:
             json.dump({
@@ -249,22 +201,15 @@ class SlamApp(App[None]):
                 'path_history': self._path_history,
                 'saved_at':     ts,
             }, f)
-
         self._save_message = f'Saved: {map_path}'
         self._save_message_until = time.monotonic() + 5.0
 
     def action_quit(self) -> None:
-        # Autosave before exit so the map is never lost.
         self.action_save_map()
         self.pss.stop_event.set()
         self.exit()
 
-    # -----------------------------------------------------------------------
-    # Read a snapshot from shared memory
-    # -----------------------------------------------------------------------
-
     def _snapshot(self) -> dict:
-        """Read all shared state into a plain dict for safe single-threaded use."""
         error = self.pss.get_error()
         return {
             'mapbytes':      bytes(self.pss.shm.buf),
@@ -282,61 +227,31 @@ class SlamApp(App[None]):
             'error_message': error if error else None,
         }
 
-    # -----------------------------------------------------------------------
-    # Auto-follow: pan when robot nears the edge of the view
-    # -----------------------------------------------------------------------
-
     def _auto_follow_update(self, robot_x_mm: float, robot_y_mm: float) -> None:
-        """Re-centre the view when the robot gets close to the view edge.
-
-        The view is always centred at (robot_x_mm + pan_x_mm, robot_y_mm + pan_y_mm).
-        So the robot distance from view centre is simply (-pan_x, -pan_y).
-        When that exceeds threshold_mm in either axis, snap pan back to 0.
-
-        Only active on zoomed views (zoom 2-5). Full map shows everything.
-        """
         if not self._auto_follow:
             return
         zoom_half_m = ZOOM_HALF_M[self.zoom_idx]
         if zoom_half_m is None:
-            return  # full map always shows everything
-
+            return
         half_mm = zoom_half_m * 1000.0
         threshold_mm = half_mm * (1.0 - self._follow_edge_frac)
-
-        # Robot offset from view centre = -pan offset
         robot_from_centre_x = -self.pan_x_mm
         robot_from_centre_y = -self.pan_y_mm
-
         if (abs(robot_from_centre_x) > threshold_mm or
                 abs(robot_from_centre_y) > threshold_mm):
             self.pan_x_mm = 0.0
             self.pan_y_mm = 0.0
 
-    # -----------------------------------------------------------------------
-    # Path history tracking
-    # -----------------------------------------------------------------------
-
     def _update_path_history(self, x_mm: float, y_mm: float) -> None:
-        """Record the robot's position if it has moved far enough."""
         dx = x_mm - self._last_pose[0]
         dy = y_mm - self._last_pose[1]
         if (dx * dx + dy * dy) ** 0.5 >= _PATH_RECORD_DIST_MM:
             self._path_history.append((x_mm, y_mm))
-            # Keep history bounded so memory doesn't grow forever.
             if len(self._path_history) > _MAX_PATH_HISTORY:
                 self._path_history = self._path_history[-_MAX_PATH_HISTORY:]
             self._last_pose = (x_mm, y_mm)
 
-    # -----------------------------------------------------------------------
-    # Map rendering
-    # -----------------------------------------------------------------------
-
     def _render_map_text(self, snapshot: dict) -> tuple[Text, bool]:
-        """Render the occupancy map as a Rich Text object.
-
-        Returns (text, robot_visible).
-        """
         try:
             map_widget = self.query_one('#map', Static)
             region = map_widget.content_region
@@ -353,7 +268,6 @@ class SlamApp(App[None]):
 
         rob_col, rob_row = mm_to_map_px(robot_x_mm, robot_y_mm)
 
-        # Compute the pixel bounds of the view window.
         zoom_half_m = ZOOM_HALF_M[self.zoom_idx]
         if zoom_half_m is None:
             col_lo, col_hi = 0.0, float(MAP_SIZE_PIXELS)
@@ -372,7 +286,6 @@ class SlamApp(App[None]):
         col_span = max(1e-9, col_hi - col_lo)
         row_span = max(1e-9, row_hi - row_lo)
 
-        # Determine robot display position.
         robot_visible = (col_lo <= rob_col < col_hi and
                          row_lo <= rob_row < row_hi)
         if robot_visible:
@@ -383,7 +296,6 @@ class SlamApp(App[None]):
         else:
             robot_sc = robot_sr = -1
 
-        # Build set of path history cells within the current view.
         path_cells: set[tuple[int, int]] = set()
         for px, py in self._path_history:
             pc, pr = mm_to_map_px(px, py)
@@ -394,12 +306,10 @@ class SlamApp(App[None]):
                     int((pr - row_lo) / row_span * disp_rows)))
                 path_cells.add((sr_, sc_))
 
-        # Downsample the map region to display resolution.
         vis_idx = render_map_numpy(
             mapbytes, col_lo, col_hi, row_lo, row_hi, disp_cols, disp_rows,
         )
 
-        # Build the Rich Text object row by row.
         text = Text(no_wrap=True)
         for sr in range(disp_rows):
             row_data = vis_idx[sr]
@@ -407,22 +317,34 @@ class SlamApp(App[None]):
             run_style = ''
 
             for sc in range(disp_cols):
-                # Robot marker takes priority.
-                if robot_visible and sr == robot_sr and sc == robot_sc:
+                # --- START MULTI-PIXEL ROBOT LOGIC ---
+                # Check if current pixel is part of the robot's body:
+                # 4 ahead (robot_sr-4 to -1), 1 center (robot_sr), 1 behind (robot_sr+1)
+                is_robot_pixel = (
+                    robot_visible and 
+                    sc == robot_sc and 
+                    (robot_sr - 4 <= sr <= robot_sr + 1)
+                )
+
+                if is_robot_pixel:
                     if run_glyph:
                         text.append(run_glyph, style=run_style)
                         run_glyph = ''
-                    text.append(
-                        robot_glyph(snapshot['theta_deg']),
-                        style=_STYLE_ROBOT,
-                    )
+                    
+                    # Top-most pixel is the directional arrow (the front)
+                    if sr == robot_sr - 4:
+                        text.append(
+                            robot_glyph(snapshot['theta_deg']),
+                            style=_STYLE_ROBOT,
+                        )
+                    else:
+                        # Body pixels are a solid block
+                        text.append('\u2588', style=_STYLE_ROBOT)
                     continue
+                # --- END MULTI-PIXEL ROBOT LOGIC ---
 
-                # Path history dots drawn over free/unknown cells only.
                 if (sr, sc) in path_cells:
                     vis = int(row_data[sc])
-                    # Only draw path dot if the cell is not a wall
-                    # (avoid hiding wall information with path dots).
                     if vis >= 2:
                         if run_glyph:
                             text.append(run_glyph, style=run_style)
@@ -447,12 +369,7 @@ class SlamApp(App[None]):
 
         return text, robot_visible
 
-    # -----------------------------------------------------------------------
-    # Periodic refresh
-    # -----------------------------------------------------------------------
-
     def _refresh_view(self) -> None:
-        """Called by Textual at UI_REFRESH_HZ; reads shared state and redraws."""
         try:
             header        = self.query_one('#header',  Static)
             map_widget    = self.query_one('#map',     Static)
@@ -462,21 +379,15 @@ class SlamApp(App[None]):
             return
 
         snapshot = self._snapshot()
-
-        # Update path history.
         self._update_path_history(snapshot['x_mm'], snapshot['y_mm'])
-
-        # Auto-follow: pan to keep robot in view.
         self._auto_follow_update(snapshot['x_mm'], snapshot['y_mm'])
 
-        # Determine the overall state label shown in the header.
         state = 'PAUSED' if snapshot['paused'] else 'LIVE'
         if snapshot['error_message']:
             state = 'ERROR'
         elif snapshot['stopped'] and not snapshot['connected']:
             state = 'STOPPED'
 
-        # Describe the current view window.
         half_m = ZOOM_HALF_M[self.zoom_idx]
         if half_m is None:
             view_str = (f'full map {MAP_SIZE_METERS:.1f}m x '
@@ -497,7 +408,6 @@ class SlamApp(App[None]):
             f'Follow: {"ON" if self._auto_follow else "OFF (c to resume)"}'
         )
 
-        # Only re-render the map when something that affects the image changed.
         region = map_widget.content_region
         render_key = (
             snapshot['map_version'],
@@ -517,7 +427,6 @@ class SlamApp(App[None]):
 
         robot_visible = self._cached_robot_visible
 
-        # Status bar.
         status_line = (
             f'Pose x={snapshot["x_mm"]:6.0f}mm  '
             f'y={snapshot["y_mm"]:6.0f}mm  '
@@ -530,12 +439,10 @@ class SlamApp(App[None]):
             status_line += ' | robot off-screen'
         if snapshot['error_message']:
             status_line += f' | ERROR: {snapshot["error_message"]}'
-        # Show save message for 5 seconds after saving.
         if self._save_message and time.monotonic() < self._save_message_until:
             status_line += f' | \u2713 {self._save_message}'
         status_widget.update(status_line)
 
-        # Help bar: map legend and key hints.
         help_widget.update(
             'Legend: '
             f'[{_STYLE_WALL}]{_GLYPH_WALL} wall[/]  '
@@ -549,15 +456,12 @@ class SlamApp(App[None]):
             'c center+follow  p pause  s save  q quit'
         )
 
-
 def run() -> None:
-    """Launch the SLAM map viewer.  Called from slam.py."""
     try:
-        import rich   # noqa: F401
-        import textual  # noqa: F401
+        import rich
+        import textual
     except ImportError:
         print('[slam] ERROR: textual is not installed.')
         print('  Run:  bash ../install_slam.sh  or activate the environment.')
         raise SystemExit(1)
-
     SlamApp().run()
