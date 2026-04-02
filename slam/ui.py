@@ -324,9 +324,9 @@ class SlamApp(App[None]):
             for sc in range(disp_cols):
                 # --- CROSS-SHAPED ARROW LOGIC (4 ahead, 1 center, 1 behind) ---
                 # Vertical: spans 4 ahead (robot_sr - 4) to 1 behind (robot_sr + 1)
-                is_vertical = (sc == robot_sc and (robot_sr - 4 <= sr <= robot_sr + 1))
+                is_vertical = (sc == robot_sc and (robot_sr - 1 <= sr <= robot_sr + 1))
                 # Horizontal: 1 left, 1 center, 1 right
-                is_horizontal = (sr == robot_sr and (robot_sc - 1 <= sc <= robot_sc + 1))
+                is_horizontal = (sr == robot_sr and (robot_sc - 4 <= sc <= robot_sc + 1))
                 
                 is_robot_pixel = robot_visible and (is_vertical or is_horizontal)
 
