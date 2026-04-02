@@ -18,21 +18,17 @@
  *                      machine, color sensor, setup(), and loop().
  */
 
+
+
+
 #include "packets.h"
 #include "serial_driver.h"
 #include <AFMotor.h>
 #include <avr/io.h>
 #include <avr/interrupt.h>
 
-#define BUTTON_PIN 2
-#define S0 0
-#define S1 1
-#define S2 2
-#define S3 3
-#define S_OUT 4
 
-#define LDR_READINGS 5
-#define DEBOUNCE_TIME 30
+
 
 // =============================================================
 // Motor definitions
@@ -42,14 +38,26 @@
 #define BACK_LEFT    3
 #define BACK_RIGHT   4
 
+
+
+
 AF_DCMotor motorFL(FRONT_LEFT);
 AF_DCMotor motorFR(FRONT_RIGHT);
 AF_DCMotor motorBL(BACK_LEFT);
 AF_DCMotor motorBR(BACK_RIGHT);
 
+
+
+
 static uint8_t motorSpeed = 200;
 
+
+
+
 typedef enum { MSTOP, GO, BACK, CCW, CW } DriveDir;
+
+
+
 
 static void move(uint8_t speed, DriveDir direction) {
     motorFL.setSpeed(speed);
@@ -81,6 +89,9 @@ static void move(uint8_t speed, DriveDir direction) {
     }
 }
 
+
+
+
 // =============================================================
 // Claw servo definitions
 // =============================================================
@@ -93,10 +104,16 @@ static void move(uint8_t speed, DriveDir direction) {
 #define GRIPPER_LOWER_LIMIT   90
 #define GRIPPER_UPPER_LIMIT   105
 
+
+
+
 #define BASE_PIN     (1 << 0)
 #define SHOULDER_PIN (1 << 1)
 #define ELBOW_PIN    (1 << 2)
 #define GRIPPER_PIN  (1 << 3)
+
+
+
 
 #define B_CHECKPOINT    0
 #define S_CHECKPOINT    10000
@@ -104,8 +121,14 @@ static void move(uint8_t speed, DriveDir direction) {
 #define G_CHECKPOINT    30000
 #define TOP_CHECKPOINT  39999
 
+
+
+
 #define STARTTICKS  3000
 #define START_TPP   20
+
+
+
 
 static int          clawStage   = 0;
 static unsigned int clawTPP     = START_TPP;
@@ -114,57 +137,69 @@ static unsigned int E_currticks = STARTTICKS, G_currticks = STARTTICKS;
 static unsigned int B_target    = STARTTICKS, S_target    = STARTTICKS;
 static unsigned int E_target    = STARTTICKS, G_target    = STARTTICKS;
 
+
+
+
 static inline unsigned int degToTicks(int deg) {
     return (unsigned int)(deg * 22.22222f + 0.5f) + 1000;
 }
+
+
+
 
 static inline unsigned int mpdToTPP(unsigned int mpd) {
     unsigned int t = (unsigned int)(444.44444f / mpd + 0.5f);
     return (t == 0) ? 1 : t;
 }
 
-// Timer1 Compare B ISR — claw servo pulse staging
-ISR(TIMER1_COMPB_vect) {
+
+
+
+// Timer5 Compare B ISR — claw servo pulse staging
+ISR(TIMER5_COMPB_vect) {
     switch (clawStage) {
         case 0:
             PORTC |= BASE_PIN;
-            OCR1B += B_currticks;
+            OCR5B += B_currticks;
             break;
         case 1:
             PORTC &= ~BASE_PIN;
-            OCR1B  = S_CHECKPOINT;
+            OCR5B  = S_CHECKPOINT;
             break;
         case 2:
             PORTC |= SHOULDER_PIN;
-            OCR1B += S_currticks;
+            OCR5B += S_currticks;
             break;
         case 3:
             PORTC &= ~SHOULDER_PIN;
-            OCR1B  = E_CHECKPOINT;
+            OCR5B  = E_CHECKPOINT;
             break;
         case 4:
             PORTC |= ELBOW_PIN;
-            OCR1B += E_currticks;
+            OCR5B += E_currticks;
             break;
         case 5:
             PORTC &= ~ELBOW_PIN;
-            OCR1B  = G_CHECKPOINT;
+            OCR5B  = G_CHECKPOINT;
             break;
         case 6:
             PORTC |= GRIPPER_PIN;
-            OCR1B += G_currticks;
+            OCR5B += G_currticks;
             break;
         case 7:
             PORTC &= ~GRIPPER_PIN;
-            OCR1B     = B_CHECKPOINT;
+            OCR5B     = B_CHECKPOINT;
             clawStage = -1;
             break;
     }
     clawStage++;
 }
 
-// Timer1 Compare A ISR — claw servo lerp tick every 20 ms
-ISR(TIMER1_COMPA_vect) {
+
+
+
+// Timer5 Compare A ISR — claw servo lerp tick every 20 ms
+ISR(TIMER5_COMPA_vect) {
     #define LERP_ONE(cur, tgt, step) \
         do { \
             if ((cur) < (tgt)) { (cur) += (step); if ((cur) > (tgt)) (cur) = (tgt); } \
@@ -176,9 +211,15 @@ ISR(TIMER1_COMPA_vect) {
     LERP_ONE(G_currticks, G_target, clawTPP);
 }
 
+
+
+
 // =============================================================
 // Packet helpers
 // =============================================================
+
+
+
 
 static void sendResponse(TResponseType resp, uint32_t p0, uint32_t p1, uint32_t p2) {
     TPacket pkt;
@@ -191,43 +232,87 @@ static void sendResponse(TResponseType resp, uint32_t p0, uint32_t p1, uint32_t 
     sendFrame(&pkt);
 }
 
+
+
+
 static void sendStatus(TState state) {
     sendResponse(RESP_STATUS, (uint32_t)state, 0, 0);
 }
+
+
+
 
 // =============================================================
 // E-Stop state machine
 // =============================================================
 
+
+
+
+#define ESTOP_PIN 3
+#define DEBOUNCE_TIME 30
+
+
+
+
 volatile TState  buttonState = STATE_RUNNING;
 volatile bool    stateChanged = false;
 volatile uint8_t was_running = 0;
 
-// ISR(INT5_vect) {
-//     static unsigned long lastTime = 0;
-//     unsigned long now = millis();
-//     if (now - lastTime < DEBOUNCE_TIME) return;
-//     lastTime = now;
 
-//     bool pressed = (PINE & (1 << PINE5));
 
-//     if (buttonState == STATE_RUNNING && pressed) {
-//         buttonState  = STATE_STOPPED;
-//         stateChanged = true;
-//         was_running  = 1;
-//         move(0, MSTOP);
-//     } else if (was_running == 1 && buttonState == STATE_STOPPED && !pressed) {
-//         was_running = 2;
-//     } else if (was_running == 2 && buttonState == STATE_STOPPED && !pressed) {
-//         buttonState  = STATE_RUNNING;
-//         stateChanged = true;
-//         was_running  = 0;
-//     }
-// }
+
+ISR(INT3_vect) {
+    static unsigned long lastTime = 0;
+    unsigned long now = millis();
+    if (now - lastTime < DEBOUNCE_TIME) return;
+    lastTime = now;
+
+
+
+
+    bool pressed = (PIND & ESTOP_PIN);
+
+
+
+
+    if (buttonState == STATE_RUNNING && pressed) {
+        buttonState  = STATE_STOPPED;
+        stateChanged = true;
+        was_running  = 1;
+        move(0, MSTOP);
+    } else if (was_running == 1 && buttonState == STATE_STOPPED && !pressed) {
+        was_running = 2;
+    } else if (was_running == 2 && buttonState == STATE_STOPPED && !pressed) {
+        buttonState  = STATE_RUNNING;
+        stateChanged = true;
+        was_running  = 0;
+    }
+}
+
+
+
 
 // =============================================================
 // Color sensor (TCS3200)
 // =============================================================
+
+
+
+
+#define S0 (1 << 0)
+#define S1 (1 << 1)
+#define S2 (1 << 2)
+#define S3 (1 << 3)
+#define S_OUT (1 << 2)
+
+
+
+
+#define LDR_READINGS 5
+
+
+
 
 volatile uint32_t rising_edge_count   = 0;
 volatile uint8_t  current_colour_stage = 0;
@@ -236,34 +321,43 @@ volatile uint32_t G_channel_value     = 0;
 volatile uint32_t B_channel_value     = 0;
 volatile uint8_t  reading_count       = 0;
 
+
+
+
 static void readColourChannels() {
     current_colour_stage = 0;
-    PORTA |=  (1 << S0);
-    PORTA &= ~(1 << S1);
+    PORTA |=  S0;
+    PORTA &= ~S1;
 
     R_channel_value = 0;
     G_channel_value = 0;
     B_channel_value = 0;
 
-    TIMSK3 |= (1 << OCIE3A);
+    TIMSK0 |= (1 << OCIE0A);
 }
+
+
+
 
 void enableChannel(uint8_t RGB) {
     switch (RGB) {
         case 0:
-            PORTA &= ~(0b00001100);
+            PORTA &= ~(S2|S3);
             break;
         case 1:
-            PORTA |= (0b00001100);
+            PORTA |= (S2|S3);
             break;
         case 2:
-            PORTA &= ~(0b00000100);
-            PORTA |=  (0b00001000);
+            PORTA &= ~S2;
+            PORTA |= S3;
             break;
     }
 }
 
-ISR(TIMER3_COMPA_vect) {
+
+
+
+ISR(TIMER0_COMPA_vect) {
     switch (current_colour_stage) {
         case 0:
             rising_edge_count = 0;
@@ -271,6 +365,9 @@ ISR(TIMER3_COMPA_vect) {
             reading_count = 0;
             current_colour_stage++;
             break;
+
+
+
 
         case 1:
             R_channel_value += rising_edge_count;
@@ -283,6 +380,9 @@ ISR(TIMER3_COMPA_vect) {
             }
             break;
 
+
+
+
         case 2:
             G_channel_value += rising_edge_count;
             rising_edge_count = 0;
@@ -293,6 +393,9 @@ ISR(TIMER3_COMPA_vect) {
                 reading_count = 0;
             }
             break;
+
+
+
 
         case 3:
             B_channel_value += rising_edge_count;
@@ -305,24 +408,37 @@ ISR(TIMER3_COMPA_vect) {
                              R_channel_value * 10,
                              G_channel_value * 10,
                              B_channel_value * 10);
-                TIMSK3 &= ~(1 << OCIE3A);
+                TIMSK0 &= ~(1 << OCIE0A);
             }
             break;
     }
 }
 
-// ISR(INT4_vect) {
-//     rising_edge_count++;
-// }
+
+
+
+ISR(INT2_vect) {rising_edge_count++;}
+
+
+
 
 // =============================================================
 // Command handler
 // =============================================================
 
+
+
+
 static void handleCommand(const TPacket *cmd) {
     if (cmd->packetType != PACKET_TYPE_COMMAND) return;
 
+
+
+
     switch (cmd->command) {
+
+
+
 
         case COMMAND_ESTOP:
             cli();
@@ -332,34 +448,55 @@ static void handleCommand(const TPacket *cmd) {
             if (buttonState == STATE_STOPPED) move(0, MSTOP);
             break;
 
+
+
+
         case COMMAND_GET_COLOUR:
             readColourChannels();
             break;
+
+
+
 
         case COMMAND_FORWARD:
             if (buttonState == STATE_RUNNING) move(motorSpeed, GO);
             sendResponse(RESP_OK, 0, 0, 0);
             break;
 
+
+
+
         case COMMAND_BACKWARD:
             if (buttonState == STATE_RUNNING) move(motorSpeed, BACK);
             sendResponse(RESP_OK, 0, 0, 0);
             break;
+
+
+
 
         case COMMAND_TURN_LEFT:
             if (buttonState == STATE_RUNNING) move(motorSpeed, CCW);
             sendResponse(RESP_OK, 0, 0, 0);
             break;
 
+
+
+
         case COMMAND_TURN_RIGHT:
             if (buttonState == STATE_RUNNING) move(motorSpeed, CW);
             sendResponse(RESP_OK, 0, 0, 0);
             break;
 
+
+
+
         case COMMAND_STOP_MOTORS:
             move(0, MSTOP);
             sendResponse(RESP_OK, 0, 0, 0);
             break;
+
+
+
 
         case COMMAND_SET_SPEED:
             motorSpeed = (uint8_t)(cmd->params[0] & 0xFF);
@@ -370,6 +507,9 @@ static void handleCommand(const TPacket *cmd) {
             sendResponse(RESP_OK, motorSpeed, 0, 0);
             break;
 
+
+
+
         case COMMAND_CLAW_BASE: {
             int angle = (int)cmd->params[0];
             if (angle >= BASE_LOWER_LIMIT && angle <= BASE_UPPER_LIMIT)
@@ -377,6 +517,9 @@ static void handleCommand(const TPacket *cmd) {
             sendResponse(RESP_OK, (uint32_t)angle, 0, 0);
             break;
         }
+
+
+
 
         case COMMAND_CLAW_SHOULDER: {
             int angle = (int)cmd->params[0];
@@ -386,6 +529,9 @@ static void handleCommand(const TPacket *cmd) {
             break;
         }
 
+
+
+
         case COMMAND_CLAW_ELBOW: {
             int angle = (int)cmd->params[0];
             if (angle >= ELBOW_LOWER_LIMIT && angle <= ELBOW_UPPER_LIMIT)
@@ -394,6 +540,9 @@ static void handleCommand(const TPacket *cmd) {
             break;
         }
 
+
+
+
         case COMMAND_CLAW_GRIPPER: {
             int angle = (int)cmd->params[0];
             if (angle >= GRIPPER_LOWER_LIMIT && angle <= GRIPPER_UPPER_LIMIT)
@@ -401,6 +550,9 @@ static void handleCommand(const TPacket *cmd) {
             sendResponse(RESP_OK, (uint32_t)angle, 0, 0);
             break;
         }
+
+
+
 
         case COMMAND_CLAW_HOME:
             B_target = STARTTICKS;
@@ -411,6 +563,9 @@ static void handleCommand(const TPacket *cmd) {
             sendResponse(RESP_OK, 0, 0, 0);
             break;
 
+
+
+
         case COMMAND_CLAW_SPEED: {
             unsigned int mpd = (unsigned int)cmd->params[0];
             if (mpd > 0) clawTPP = mpdToTPP(mpd);
@@ -420,9 +575,15 @@ static void handleCommand(const TPacket *cmd) {
     }
 }
 
+
+
+
 // =============================================================
 // Arduino setup() and loop()
 // =============================================================
+
+
+
 
 void setup() {
     //motorFL.setSpeed(200);
@@ -430,58 +591,77 @@ void setup() {
     //delay(3000);
     // ... rest of setup
 
+
+
+
 #if USE_BAREMETAL_SERIAL
     usartInit(103);
 #else
     Serial.begin(9600);
 #endif
 
-    // Button / E-Stop interrupt (INT5 / PE5)
-    DDRE  &= ~(1 << DDE5);
-    PORTE |=  (1 << PORTE5);
-    EICRB |=  (1 << ISC50);
-    EICRB &= ~(1 << ISC51);
-   // delay(100);
-   // buttonState = STATE_RUNNING;
-   // EIMSK |=  (1 << INT5);
 
-    // Rising-edge counter for colour sensor (INT4)
-    EICRB |= (1 << ISC41) | (1 << ISC40);
-    EIMSK |= (1 << INT4);
 
-   // Colour-sensor GPIO (PORTA)
-    DDRA |= (1 << S0);
-    DDRA |= (1 << S1);
-    DDRA |= (1 << S2);
-    DDRA |= (1 << S3);
-    DDRE &= ~(1 << S_OUT);
-    PORTA = 0b0;
 
-   //  Timer1: claw servo PWM, CTC, prescaler=8, TOP=39999 -> 20 ms period
-    // TCCR1A = 0b0;
-    // TIMSK1 = 0b0;
-    // TCNT1  = 0;
-    // OCR1A  = TOP_CHECKPOINT;
-    // OCR1B  = B_CHECKPOINT;
-    // TIMSK1 = (1 << OCIE1A) | (1 << OCIE1B);
-    // TCCR1B = (1 << WGM12) | (1 << CS11);
+    // E-Stop button interrupt (PD3 / INT3)
+    DDRD  &= ~ESTOP_PIN;
+    PORTD |= ESTOP_PIN; //set high for pullup
+    EICRA |=  (1 << ISC30);
+    EICRA &= ~(1 << ISC31);
+    delay(100);
+    buttonState = STATE_RUNNING;
+    EIMSK |=  (1 << INT3);
 
-    // Claw servo GPIO (PORTC bits 0-3)
-    DDRC  |=  (BASE_PIN | SHOULDER_PIN | ELBOW_PIN | GRIPPER_PIN);
-    PORTC &= ~(BASE_PIN | SHOULDER_PIN | ELBOW_PIN | GRIPPER_PIN);
 
-    // //Timer3: colour sensor window, CTC, prescaler=256, OCR3A=6249 -> 100 ms
-    // TCCR3A = 0;
-    // TCCR3B = (1 << WGM32) | (1 << CS32);
-    // OCR3A  = 6249;
-    // TCNT3  = 0;
-    // TIMSK3 = 0;
+
+
+    // Rising-edge counter fkor colour sensor (PD2 / INT2)
+    DDRD &= ~S_OUT;    
+    EICRA |= (1 << ISC21) | (1 << ISC20);
+    EIMSK |= (1 << INT2);
+   
+    // Colour-sensor GPIO
+    DDRA |= (S0|S1|S2|S3);
+    PORTA &= ~(S0|S1|S2|S3);
+    //Timer0: colour sensor window, CTC, 100 ms
+    //prescaler=256, OCR3A=6249
+    TCCR0A = 0;
+    TCCR0B = (1 << WGM02) | (1 << CS02);
+    OCR0A  = 6249;
+    TCNT0  = 0;
+    TIMSK0 = 0;
+
+
+
+
+    // Claw servo GPIO
+   DDRC  |=  (BASE_PIN | SHOULDER_PIN | ELBOW_PIN | GRIPPER_PIN);
+   PORTC &= ~(BASE_PIN | SHOULDER_PIN | ELBOW_PIN | GRIPPER_PIN);
+    // Timer5: claw servo PWM, CTC, 20 ms period
+    //prescaler=8, TOP=39999
+    TCCR5A = 0b0;
+    TIMSK5 = 0b0;
+    TCNT5  = 0;
+    OCR5A  = TOP_CHECKPOINT;
+    OCR5B  = B_CHECKPOINT;
+    TIMSK5 = (1 << OCIE5A) | (1 << OCIE5B);
+    TCCR5B = (1 << WGM52) | (1 << CS51);
+
+
+
 
     sei();
-//  motorFL.setSpeed(200);
-//  motorFL.run(FORWARD);
-//move(200, GO);
+
+
+
+
+//  motorFL.setSpeed(200);// testing
+//  motorFL.run(FORWARD); // testing
+//  move(200, GO); // testing
 }
+
+
+
 
 void loop() {
     // --- 1. Report any E-Stop state change to the Pi ---
@@ -493,9 +673,17 @@ void loop() {
         sendStatus(state);
     }
 
+
+
+
     // --- 2. Process incoming commands from the Pi ---
     TPacket incoming;
     if (receiveFrame(&incoming)) {
         handleCommand(&incoming);
     }
-    }
+}
+
+
+
+
+

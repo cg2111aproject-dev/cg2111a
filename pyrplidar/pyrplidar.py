@@ -1,6 +1,6 @@
-from pyrplidar_serial import PyRPlidarSerial
-from pyrplidar_protocol import *
-import pyrplidar_protocol
+from pyrplidar.pyrplidar_serial import PyRPlidarSerial
+from pyrplidar.pyrplidar_protocol import *
+import pyrplidar.pyrplidar_protocol as pyrplidar_protocol
 
 
 

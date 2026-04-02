@@ -260,7 +260,7 @@ Public API (drop-in replacement):
 import shutil, sys, time
 import numpy as np
 from scipy.ndimage import uniform_filter
-from lidar.alex_lidar import lidarConnect, lidarDisconnect, lidarStatus, performSingleScan
+from pyrplidar.alex_lidar import lidarConnect, lidarDisconnect, lidarStatus, performSingleScan
 
 # ── Configuration ─────────────────────────────────────────────────────────────
 PORT     = "/dev/ttyUSB0"
