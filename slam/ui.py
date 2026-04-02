@@ -322,24 +322,25 @@ class SlamApp(App[None]):
             run_style = ''
 
             for sc in range(disp_cols):
-                # --- CROSS-SHAPED ARROW LOGIC (4 ahead, 1 center, 1 behind) ---
-                # Vertical: spans 4 ahead (robot_sr - 4) to 1 behind (robot_sr + 1)
-                is_vertical = (sc == robot_sc and (robot_sr - 1 <= sr <= robot_sr + 1))
-                # Horizontal: 1 left, 1 center, 1 right
-                is_horizontal = (sr == robot_sr and (robot_sc - 4 <= sc <= robot_sc + 1))
-                
-                is_robot_pixel = robot_visible and (is_vertical or is_horizontal)
+                # --- RECTANGULAR ARROW LOGIC (6x3 solid block of arrows) ---
+                # Checks if current pixel (sr, sc) is inside the 3x6 bounds
+                is_robot_rect = (
+                    robot_visible and 
+                    (robot_sc - 1 <= sc <= robot_sc + 1) and  # Width: 3 pixels
+                    (robot_sr - 4 <= sr <= robot_sr + 1)      # Length: 6 pixels
+                )
 
-                if is_robot_pixel:
+                if is_robot_rect:
                     if run_glyph:
                         text.append(run_glyph, style=run_style)
                         run_glyph = ''
+                    # Fill the entire rectangle with the directional arrow
                     text.append(
                         robot_glyph(snapshot['theta_deg']),
                         style=_STYLE_ROBOT,
                     )
                     continue
-                # --- END CROSS-SHAPED ARROW LOGIC ---
+                # --- END RECTANGULAR LOGIC ---
 
                 if (sr, sc) in path_cells:
                     vis = int(row_data[sc])
