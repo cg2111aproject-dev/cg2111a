@@ -122,8 +122,8 @@ def renderGreyscaleFrame(frame):
                 f"\033[48;2;{vt};{vt};{vt}m"
                 f"\033[38;2;{vb};{vb};{vb}m"
                 "▄"
-                f"{RESET}"
             )
+        line += RESET
         lines.append(line)
 
     print("\n".join(lines))
