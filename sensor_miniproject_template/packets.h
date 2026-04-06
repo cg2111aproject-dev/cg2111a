@@ -36,12 +36,25 @@ typedef enum {
     COMMAND_CLAW_GRIPPER  = 11,
     COMMAND_CLAW_HOME     = 12,
     COMMAND_CLAW_SPEED    = 13,
+    COMMAND_OPEN_GRIPPER = 14,
+    COMMAND_CLOSE_GRIPPER = 15,
+    COMMAND_STOP_CLAW = 16,
+    COMMAND_INCR_CLAW_BASE = 17,
+    COMMAND_DECR_CLAW_BASE = 18,
+    COMMAND_INCR_CLAW_SHOULDER = 19,
+    COMMAND_DECR_CLAW_SHOULDER = 20,
+    COMMAND_INCR_CLAW_ELBOW = 21,
+    COMMAND_DECR_CLAW_ELBOW = 22,
+    COMMAND_INCR_CLAW_SPEED = 23,
+    COMMAND_DECR_CLAW_SPEED = 24,
+
 } TCommandType;
 
 typedef enum {
     RESP_OK     = 0,
     RESP_STATUS = 1,
     RESP_COLOUR_DATA = 2,
+    RESP_DEBUG_MESSAGE = 3,
     // TODO (Activity 2): add your own response type for the color sensor
 } TResponseType;
 

@@ -216,14 +216,15 @@ ISR(INT3_vect) {
 
 
 #define startticks 3000
-#define startTPP 20
-#define TPP_STEP 2
-#define TPP_MAX 40
-#define TPP_MIN 6
+#define startTPP 20; //20
+
 
 int stagecount = 0;
+volatile uint8_t clawmode = 0;
+//0: stopped, 1,2: move base, 3,4: move shoulder, ..., 9: home
 
-volatile unsigned int ticksperperiod = startTPP;
+
+unsigned int ticksperperiod = startTPP;
 unsigned int B_currticks = startticks, S_currticks = startticks, E_currticks = startticks, G_currticks = startticks;
 unsigned int B_target = startticks, S_target = startticks, E_target = startticks, G_target = startticks;
 
@@ -643,7 +644,6 @@ static void handleCommand(const TPacket *cmd) {
             sendResponse(RESP_OK, motorSpeed, 0, 0);
             break;
 
-//----------
 
        case COMMAND_INCR_CLAW_BASE:
             B_target = BASE_UPPER_LIMIT_TICKS;
@@ -670,16 +670,16 @@ static void handleCommand(const TPacket *cmd) {
             break;
 
        case COMMAND_OPEN_GRIPPER:
-            //clawmode = 0; //stop other movement
-            //sendResponse(3, 'o', 'p', clawmode);
+            clawmode = 0; //stop other movement
+            sendResponse(3, 'o', 'p', clawmode);
             G_target = GRIPPER_LOWER_LIMIT_TICKS;
             G_currticks = GRIPPER_LOWER_LIMIT_TICKS;
             //motorFL.run(FORWARD);
             break;
 
        case COMMAND_CLOSE_GRIPPER:
-            //clawmode = 0; //stop other movement
-            //sendResponse(3, 'c', 'l', clawmode);
+            clawmode = 0; //stop other movement
+            sendResponse(3, 'c', 'l', clawmode);
             G_target = GRIPPER_UPPER_LIMIT_TICKS;
             G_currticks = GRIPPER_UPPER_LIMIT_TICKS;
             break;
@@ -690,19 +690,20 @@ static void handleCommand(const TPacket *cmd) {
             E_target = E_currticks;
             G_target = G_currticks;
             break;       
-            
+
        case COMMAND_INCR_CLAW_SPEED:
-	    if (ticksperperiod + TPP_STEP > TPP_MAX) ticksperperiod = TPP_MAX;
-	    else ticksperperiod += TPP_STEP;
-	    break;
+            if (ticksperperiod + TPP_STEP > MAX_TPP) ticksperperiod = MAX_TPP;
+            else ticksperperiod += TPP_STEP;
+            break;
 
        case COMMAND_DECR_CLAW_SPEED:
-	    if (ticksperperiod < TPP_STEP + TPP_MIN) ticksperperiod = TPP_MIN;
-	    else ticksperperiod -= TPP_STEP;
+            if (ticksperperiod < MIN_TPP + TPP_STEP) ticksperperiod = MIN_TPP;
+            else ticksperperiod -= TPP_STEP;
 	    break;
 
 //----------
 
+            
         case COMMAND_CLAW_BASE: {
             uint32_t angle = cmd->params[0];
             if (angle >= BASE_LOWER_LIMIT && angle <= BASE_UPPER_LIMIT)
@@ -761,7 +762,7 @@ static void handleCommand(const TPacket *cmd) {
             E_target = startticks;
             G_target = startticks;
             ticksperperiod = startTPP;
-            //clawmode = 9;
+            clawmode = 9;
             sendResponse(RESP_OK, 0, 0, 0);
             break;
 

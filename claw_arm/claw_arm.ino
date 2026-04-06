@@ -52,14 +52,14 @@ void setup() {
   cli();
   DDRC |= BASE_PIN | SHOULDER_PIN | ELBOW_PIN | GRIPPER_PIN;
 
-  TCCR1A = 0b0; //WGM11 WGM10
-  TIMSK1 |= 0b0110; //enable A and B interrupts
-  TCNT1 = 0;
+  TCCR5A = 0b0; //WGM11 WGM10
+  TIMSK5 |= 0b0110; //enable A and B interrupts
+  TCNT5 = 0;
 
-  OCR1A = TOP_CHECKPOINT; //20ms period
-  OCR1B = 0;
+  OCR5A = TOP_CHECKPOINT; //20ms period
+  OCR5B = 0;
 
-  TCCR1B = 0b00001010; //WGM13 = 0, WGM12 = 1, prescalar = 8
+  TCCR5B = 0b00001010; //WGM13 = 0, WGM12 = 1, prescalar = 8
   sei();
 
   PORTC &= ~(BASE_PIN | SHOULDER_PIN | ELBOW_PIN | GRIPPER_PIN); //set all pins to LOW
@@ -67,53 +67,53 @@ void setup() {
   // OCR1B = B_currticks;
 }
 
-ISR(TIMER1_COMPA_vect)
+ISR(TIMER5_COMPA_vect)
 {
   lerp_ticks();
 }
 
-ISR(TIMER1_COMPB_vect)
+ISR(TIMER5_COMPB_vect)
 {
   switch (stagecount) {
 
     case 0:
       PORTC |= BASE_PIN;
-      OCR1B += B_currticks;
+      OCR5B += B_currticks;
       break;
 
     case 1:
       PORTC &= ~BASE_PIN;
-      OCR1B = S_CHECKPOINT;
+      OCR5B = S_CHECKPOINT;
       break;
 
     case 2:
       PORTC |= SHOULDER_PIN;
-      OCR1B += S_currticks;
+      OCR5B += S_currticks;
       break;
 
     case 3:
       PORTC &= ~SHOULDER_PIN;
-      OCR1B = E_CHECKPOINT;
+      OCR5B = E_CHECKPOINT;
       break;
 
     case 4:
       PORTC |= ELBOW_PIN;
-      OCR1B += E_currticks;
+      OCR5B += E_currticks;
       break;
 
     case 5:
       PORTC &= ~ELBOW_PIN;
-      OCR1B = G_CHECKPOINT;
+      OCR5B = G_CHECKPOINT;
       break;
 
     case 6:
       PORTC |= GRIPPER_PIN;
-      OCR1B += G_currticks;
+      OCR5B += G_currticks;
       break;
 
     case 7:
       PORTC &= ~GRIPPER_PIN;
-      OCR1B = B_CHECKPOINT;
+      OCR5B = B_CHECKPOINT;
       stagecount = -1;
       break;
 

@@ -66,10 +66,22 @@ COMMAND_CLAW_ELBOW    = 10
 COMMAND_CLAW_GRIPPER  = 11
 COMMAND_CLAW_HOME     = 12
 COMMAND_CLAW_SPEED    = 13
+COMMAND_OPEN_GRIPPER = 14
+COMMAND_CLOSE_GRIPPER = 15
+COMMAND_STOP_CLAW = 16
+COMMAND_INCR_CLAW_BASE = 17
+COMMAND_DECR_CLAW_BASE = 18
+COMMAND_INCR_CLAW_SHOULDER = 19
+COMMAND_DECR_CLAW_SHOULDER = 20
+COMMAND_INCR_CLAW_ELBOW = 21
+COMMAND_DECR_CLAW_ELBOW = 22
+COMMAND_INCR_CLAW_SPEED = 23
+COMMAND_DECR_CLAW_SPEED = 24
 
-RESP_OK          = 0
-RESP_STATUS      = 1
-RESP_COLOUR_DATA = 2
+RESP_OK            = 0
+RESP_STATUS        = 1
+RESP_COLOUR_DATA   = 2
+RESP_DEBUG_MESSAGE = 3
 
 STATE_RUNNING = 0
 STATE_STOPPED = 1
@@ -183,6 +195,9 @@ def printPacket(pkt):
         elif cmd == RESP_COLOUR_DATA:
             r, g, b = pkt['params'][0], pkt['params'][1], pkt['params'][2]
             print(f"\r Color  R:{r}  G:{g}  B:{b}  Hz")
+        elif cmd == RESP_DEBUG_MESSAGE:
+            msg1, msg2, msg3 = pkt['params'][0], pkt['params'][1], pkt['params'][2]
+            print(f"msg: {msg1} {msg2} {msg3}")
         debug = pkt['data'].rstrip(b'\x00').decode('ascii', errors='replace')
         if debug:
             print(f"\r Arduino: {debug}")
