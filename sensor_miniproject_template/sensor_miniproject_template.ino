@@ -125,7 +125,7 @@ static void move(uint8_t speed, DriveDir direction) {
 
 
 #define STARTTICKS  3000
-#define START_TPP   20
+#define START_TPP   40
 
 
 
