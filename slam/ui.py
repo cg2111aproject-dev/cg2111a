@@ -180,7 +180,7 @@ class SlamApp(App[None]):
         vis_idx = render_map_numpy(snapshot['mapbytes'], col_lo, col_hi, row_lo, row_hi, disp_cols, disp_rows)
 
         # PRE-CALCULATE ROTATION (Leverage for CPU speed)
-        rad = math.radians(snapshot['theta_deg'] + 90)
+        rad = math.radians(-snapshot['theta_deg'] + 90)
         cos_t, sin_t = math.cos(rad), math.sin(rad)
         robot_glyph_char = robot_glyph(snapshot['theta_deg'])
 
