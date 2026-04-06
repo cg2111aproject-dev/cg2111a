@@ -104,11 +104,15 @@ def pan_step_mm(zoom_idx: int) -> float:
 def robot_glyph(theta_deg: float) -> str:
     """Choose a directional arrow for the robot marker.
 
-    +4 octants (180°) corrects for the coordinate transform:
-    the 90° CCW map rotation combined with BreezySLAM's CCW-from-+x
-    convention results in the arrow pointing opposite to the visual front.
+    To rotate the icon 90 degrees clockwise from your current 'pointing left' 
+    state, we remove the '+ 2' octant offset. 
+    
+    _DIRECTION_GLYPHS index:
+      0 = east (right), 2 = north (up), 4 = west (left), 6 = south (down)
     """
-    idx = (int(round(theta_deg / 45.0)) + 4) % 8
+    # Original was (int(round(theta_deg / 45.0)) + 2) % 8
+    # Removing '+ 2' octants performs a 90-degree clockwise shift.
+    idx = int(round(theta_deg / 45.0)) % 8
     return _DIRECTION_GLYPHS[idx]
 
 
