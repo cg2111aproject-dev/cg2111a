@@ -182,8 +182,8 @@ ISR(INT3_vect) {
 // =============================================================
 #define BASE_LOWER_LIMIT      0
 #define BASE_UPPER_LIMIT      180
-#define SHOULDER_LOWER_LIMIT  50
-#define SHOULDER_UPPER_LIMIT  135
+#define SHOULDER_LOWER_LIMIT  0
+#define SHOULDER_UPPER_LIMIT  115
 #define ELBOW_LOWER_LIMIT     105
 #define ELBOW_UPPER_LIMIT     180
 #define GRIPPER_LOWER_LIMIT   100 //90, too wide
@@ -192,8 +192,8 @@ ISR(INT3_vect) {
 //REMEMBER TO UPDATE THESE WHEN CHANGING ANYTHING ABOVE
 #define BASE_LOWER_LIMIT_TICKS      1000
 #define BASE_UPPER_LIMIT_TICKS      5000
-#define SHOULDER_LOWER_LIMIT_TICKS  2111
-#define SHOULDER_UPPER_LIMIT_TICKS  4000
+#define SHOULDER_LOWER_LIMIT_TICKS  1000
+#define SHOULDER_UPPER_LIMIT_TICKS  3556
 #define ELBOW_LOWER_LIMIT_TICKS     3333
 #define ELBOW_UPPER_LIMIT_TICKS     5000
 #define GRIPPER_LOWER_LIMIT_TICKS   3222
@@ -215,7 +215,7 @@ ISR(INT3_vect) {
 #define TOP_CHECKPOINT 39999
 
 
-#define startticks 3000
+#define startticks 3444
 #define startTPP 20
 #define TPP_STEP 2
 #define TPP_MAX 40
