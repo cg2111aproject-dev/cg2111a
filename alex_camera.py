@@ -124,6 +124,5 @@ def renderGreyscaleFrame(frame):
                 "▄"
             )
         line += RESET
-        lines.append(line)
-
-    print("\n".join(lines))
+        lines.append(line + "\r\n")
+    print("".join(lines), end="")
