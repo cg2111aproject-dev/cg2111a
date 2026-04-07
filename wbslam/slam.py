@@ -26,6 +26,7 @@ import os
 # Ensure this directory is on the module search path so that relative imports
 # (e.g. 'import settings') work correctly when the file is run as a script.
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from ui import SlamApp
 from lidar_forward import start_forwarder

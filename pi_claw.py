@@ -86,6 +86,15 @@ COMMAND_INCR_CLAW_ELBOW = 21
 COMMAND_DECR_CLAW_ELBOW = 22
 COMMAND_INCR_CLAW_SPEED = 23
 COMMAND_DECR_CLAW_SPEED = 24
+COMMAND_CLAW_P1 = 25
+COMMAND_CLAW_P2 = 26
+COMMAND_CLAW_P3 = 27
+COMMAND_CLAW_P4 = 28
+COMMAND_CLAW_P5 = 29
+COMMAND_CLAW_P6 = 30
+COMMAND_STOP_COLOUR = 31
+
+
 
 RESP_OK          = 0
 RESP_STATUS      = 1
@@ -177,10 +186,14 @@ def printPacket(pkt):
     if ptype == PACKET_TYPE_RESPONSE:
         if cmd == RESP_OK:
             _print("Response: OK")
+
         elif cmd == RESP_STATUS:
             _estop_state = pkt['params'][0]
-            label = "RUNNING" if _estop_state == STATE_RUNNING else "STOPPED"
-            _print(f"Status: {label}")
+            if _estop_state == STATE_RUNNING: _print("Status: RUNNING")
+            else:
+                #todo HALT LIDAR
+                _print("Status:STOPPED")
+
         elif cmd == RESP_COLOUR_DATA:
             r, g, b = pkt['params'][0], pkt['params'][1], pkt['params'][2]
             _print(f"Color  R:{r}  G:{g}  B:{b}  Hz")
@@ -351,42 +364,62 @@ def _set_claw_speed():
 
 
 def _handle_tap(ch):
+
     if ch == 'e':
         sendCommand(COMMAND_ESTOP, data=b'estop')
         _print("E-Stop toggled.")
-    elif ch == 'c':
-        if _estop_state == STATE_STOPPED:
-            _print("Refused: E-Stop active.")
-        else:
-            sendCommand(COMMAND_GET_COLOUR)
-            _print("Requesting colour...")
-    elif ch == 'p':
-        handleCameraCommand()
-    elif ch == 'h':
-        _claw_angles.update({'i': 90, 'o': 90, 'k': 140, 'n': 90})
-        sendCommand(COMMAND_CLAW_HOME)
-        _print("Claw homing.")
-    #elif ch == 'v':
-    #    _set_claw_speed()
-    elif ch == '[':
-        sendCommand(COMMAND_OPEN_GRIPPER)
-        _print("opening gripper")
-    elif ch == ']':
-        sendCommand(COMMAND_CLOSE_GRIPPER)
-        _print("closing gripper")
-    elif ch == '+':
-        sendCommand(COMMAND_INCR_CLAW_SPEED)
-        _print("increasing claw speed")
-    elif ch == '-':
-        sendCommand(COMMAND_DECR_CLAW_SPEED)
-        _print("decreasing claw speed")
+
+    if _estop_state == STATE_STOPPED: _print("Refused: E-Stop active.")
     else:
-        #_print(f"Unknown key '{ch}'. Valid: e c p h v  i/I o/O k/K n/N  q")
-        _print(f"Unknown key '{ch}'. Valid: e c p h ij kl un [ ] +-(need press shift)  q")
 
+        if ch == 'c':
+            sendCommand(COMMAND_GET_COLOUR)
+            _print("Colour sensor ON")
+        elif ch == 'x':
+            sendCommand(COMMAND_STOP_COLOUR)
+            _print("Colour sensor OFF")
 
+        elif ch == 'p': handleCameraCommand()
 
-
+        elif ch == 'h':
+            #_claw_angles.update({'i': 90, 'o': 90, 'k': 140, 'n': 90})
+            sendCommand(COMMAND_CLAW_HOME)
+            _print("Claw homing...")
+        elif ch == '1':
+            sendCommand(COMMAND_CLAW_P1)
+            _print("Claw going to P1...")
+        elif ch == '2':
+            sendCommand(COMMAND_CLAW_P2)
+            _print("Claw going to P2...")
+        elif ch == '3':
+            sendCommand(COMMAND_CLAW_P3)
+            _print("Claw going to P3...")
+        elif ch == '4':
+            sendCommand(COMMAND_CLAW_P4)
+            _print("Claw going to P4...")
+        elif ch == '5':
+            sendCommand(COMMAND_CLAW_P5)
+            _print("Claw going to P5...")
+        elif ch == '6':
+            sendCommand(COMMAND_CLAW_P6)
+            _print("Claw going to P6...")
+        #elif ch == 'v':
+    #    _set_claw_speed()
+        elif ch == '[':
+            sendCommand(COMMAND_OPEN_GRIPPER)
+            _print("opening gripper...")
+        elif ch == ']':
+            sendCommand(COMMAND_CLOSE_GRIPPER)
+            _print("closing gripper...")
+        elif ch == '=': #this is the '+' key without holding shift 
+            sendCommand(COMMAND_INCR_CLAW_SPEED)
+            _print("increasing claw speed")
+        elif ch == '-':
+            sendCommand(COMMAND_DECR_CLAW_SPEED)
+            _print("decreasing claw speed")
+        else:
+            #_print(f"Unknown key '{ch}'. Valid: e c p h v  i/I o/O k/K n/N  q")
+            _print(f"Unknown key '{ch}'. Valid: e cx p h123456 ij kl un [ ] +-  q")
 
 
 # ----------------------------------------------------------------
@@ -454,7 +487,10 @@ def runCommandInterface():
 
     finally:
         termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+        #stop/reset everything
+        sendCommand(COMMAND_STOP_MOTORS)
         sendCommand(COMMAND_CLAW_HOME)
+        sendCommand(COMMAND_STOP_COLOUR)
         sys.stdout.write("\r\nClaw operator exiting.\r\n")
         sys.stdout.flush()
 
