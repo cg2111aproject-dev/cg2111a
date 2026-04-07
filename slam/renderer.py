@@ -30,8 +30,8 @@ _GLYPH_WALL       = '\u2588'  # full block
 _GLYPH_WALL_SOFT  = '\u2593'  # dark shade
 _GLYPH_FRONTIER   = '\u2592'  # medium shade
 _GLYPH_UNKNOWN    = '\u00b7'  # middle dot
-_GLYPH_FREE       = '\u2588'  # full block
-_GLYPH_FREE_CLEAR = '\u2588'  # full block
+_GLYPH_FREE       = '\u2591'  # light shade
+_GLYPH_FREE_CLEAR = '\u25e6'  # white bullet
 _GLYPH_ROBOT      = '\u25c9'  # fisheye (robot marker)
 
 # Path history glyph and style
@@ -43,8 +43,8 @@ _STYLE_WALL       = 'bold white on red'   # white text on red bg = very visible 
 _STYLE_WALL_SOFT  = 'bold red'
 _STYLE_FRONTIER   = 'bold yellow'
 _STYLE_UNKNOWN    = 'bright_black'
-_STYLE_FREE       = 'black'
-_STYLE_FREE_CLEAR = 'black'
+_STYLE_FREE       = 'green'
+_STYLE_FREE_CLEAR = 'bold bright_green'
 _STYLE_ROBOT      = 'bold bright_cyan'
 
 # Direction arrows for the robot marker (8 compass octants).
@@ -133,7 +133,7 @@ def render_map_numpy(
 
     maparray = np.rot90(np.flipud(maparray), k=1)
 
-    samples_per_cell = 8
+    samples_per_cell = 6
 
     r_centers = np.linspace(row_lo, row_hi, disp_rows * samples_per_cell,
                             endpoint=False)
