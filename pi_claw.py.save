@@ -369,7 +369,7 @@ def _handle_tap(ch):
         sendCommand(COMMAND_ESTOP, data=b'estop')
         _print("E-Stop toggled.")
 
-    elif _estop_state == STATE_STOPPED: _print("Refused: E-Stop active.")
+    if _estop_state == STATE_STOPPED: _print("Refused: E-Stop active.")
     else:
 
         if ch == 'c':
@@ -403,8 +403,9 @@ def _handle_tap(ch):
         elif ch == '6':
             sendCommand(COMMAND_CLAW_P6)
             _print("Claw going to P6...")
-        #elif ch == 'v':
-    #    _set_claw_speed()
+
+        #elif ch == 'v': _set_claw_speed()
+
         elif ch == '[':
             sendCommand(COMMAND_OPEN_GRIPPER)
             _print("opening gripper...")
@@ -417,9 +418,13 @@ def _handle_tap(ch):
         elif ch == '-':
             sendCommand(COMMAND_DECR_CLAW_SPEED)
             _print("decreasing claw speed")
-        else:
-            #_print(f"Unknown key '{ch}'. Valid: e c p h v  i/I o/O k/K n/N  q")
-            _print(f"Unknown key '{ch}'. Valid: e cx p h123456 ij kl un [ ] +-  q")
+       else:
+        #_print(f"Unknown key '{ch}'. Valid: e c p h v  i/I o/O k/K n/N  q")
+        _print(f"Unknown key '{ch}'. Valid: e cx p h123456 ij kl un [ ] +-  q")
+
+
+
+
 
 
 # ----------------------------------------------------------------

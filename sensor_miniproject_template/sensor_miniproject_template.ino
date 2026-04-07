@@ -92,7 +92,7 @@ static void move(uint8_t speed, DriveDir direction) {
 #define BASE_UPPER_LIMIT      180
 #define SHOULDER_LOWER_LIMIT  35 ///103 //35
 #define SHOULDER_UPPER_LIMIT  153
-#define ELBOW_LOWER_LIMIT     48 ///90 //110
+#define ELBOW_LOWER_LIMIT     51 ///48 ///90 //110
 #define ELBOW_UPPER_LIMIT     142 //138 //120
 #define GRIPPER_LOWER_LIMIT   105 //90, too wide
 #define GRIPPER_UPPER_LIMIT   130 //105
@@ -102,7 +102,7 @@ static void move(uint8_t speed, DriveDir direction) {
 #define BASE_UPPER_LIMIT_TICKS      5000
 #define SHOULDER_LOWER_LIMIT_TICKS  1778 ///3289 //1778
 #define SHOULDER_UPPER_LIMIT_TICKS  4400 //4489
-#define ELBOW_LOWER_LIMIT_TICKS     2067 ///3000 //3444
+#define ELBOW_LOWER_LIMIT_TICKS     2133 ///2067 ///3000 //3444
 #define ELBOW_UPPER_LIMIT_TICKS     4156 //4067 //3667
 #define GRIPPER_LOWER_LIMIT_TICKS   3333
 #define GRIPPER_UPPER_LIMIT_TICKS   3889
@@ -129,11 +129,11 @@ static void move(uint8_t speed, DriveDir direction) {
 #define S_startticks 1778 //1778 //3720
 #define E_startticks 2978 //3196 //3256
 #define TICKS_SP1 3420
-#define TICKS_SP2 3506
-#define TICKS_SP3 3594
-#define TICKS_SP4 3814
-#define TICKS_SP5 3968
-#define TICKS_SP6 4111
+#define TICKS_SP2 3576 //3506
+#define TICKS_SP3 3732 //3594
+#define TICKS_SP4 3888 //3814
+#define TICKS_SP5 4044 //3968
+#define TICKS_SP6 4200 //4111
 
 //CLAW PRESETS
 
@@ -576,10 +576,10 @@ static void handleCommand(const TPacket *cmd) {
 	    //HALT MOTOR, CLAW, COLOUR SENSOR
             if (buttonState == STATE_STOPPED) {
 	        move(0, MSTOP);
-	        B_currticks = B_target;
-		S_currticks = S_target;
-		E_currticks = E_target;
-		G_currticks = G_target;
+	        B_target = B_currticks;
+		S_target = S_currticks;
+		E_target = E_currticks;
+		G_target = G_currticks;
 		TIMSK2 &= ~(1 << OCIE2A); //off timer2 interrupt
 	    }
             break;
