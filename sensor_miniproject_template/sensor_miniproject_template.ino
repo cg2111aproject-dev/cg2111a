@@ -153,10 +153,10 @@ ISR(INT3_vect) {
     lastTime = now;  
 
 
- 
+    
     bool pressed = (PIND & ESTOP_PIN);
     pressed = !pressed;
-    if (pressed) sendResponse(3, 'a', PIND, ESTOP_PIN);
+    if (pressed) sendResponse(3, 1, PIND, ESTOP_PIN);
     else sendResponse(3, 0, PIND, ESTOP_PIN);
 
 
@@ -182,25 +182,22 @@ ISR(INT3_vect) {
 // =============================================================
 #define BASE_LOWER_LIMIT      0
 #define BASE_UPPER_LIMIT      180
-#define SHOULDER_LOWER_LIMIT  0
-#define SHOULDER_UPPER_LIMIT  115
-#define ELBOW_LOWER_LIMIT     105
-#define ELBOW_UPPER_LIMIT     180
-#define GRIPPER_LOWER_LIMIT   100 //90, too wide
-#define GRIPPER_UPPER_LIMIT   125 //105
+#define SHOULDER_LOWER_LIMIT  35
+#define SHOULDER_UPPER_LIMIT  140
+#define ELBOW_LOWER_LIMIT     35
+#define ELBOW_UPPER_LIMIT     120
+#define GRIPPER_LOWER_LIMIT   105 //90, too wide
+#define GRIPPER_UPPER_LIMIT   130 //105
 
 //REMEMBER TO UPDATE THESE WHEN CHANGING ANYTHING ABOVE
 #define BASE_LOWER_LIMIT_TICKS      1000
 #define BASE_UPPER_LIMIT_TICKS      5000
-#define SHOULDER_LOWER_LIMIT_TICKS  1000
-#define SHOULDER_UPPER_LIMIT_TICKS  3556
-#define ELBOW_LOWER_LIMIT_TICKS     3333
-#define ELBOW_UPPER_LIMIT_TICKS     5000
-#define GRIPPER_LOWER_LIMIT_TICKS   3222
-#define GRIPPER_UPPER_LIMIT_TICKS   3778
-
-
-
+#define SHOULDER_LOWER_LIMIT_TICKS  1778
+#define SHOULDER_UPPER_LIMIT_TICKS  4111
+#define ELBOW_LOWER_LIMIT_TICKS     1778
+#define ELBOW_UPPER_LIMIT_TICKS     3667
+#define GRIPPER_LOWER_LIMIT_TICKS   3333
+#define GRIPPER_UPPER_LIMIT_TICKS   3889
 
 #define BASE_PIN     (1 << 0)
 #define SHOULDER_PIN (1 << 1)
@@ -220,12 +217,14 @@ ISR(INT3_vect) {
 #define TPP_STEP 2
 #define TPP_MAX 40
 #define TPP_MIN 6
+#define S_startticks 2000
+#define E_startticks 3556
 
 int stagecount = 0;
 
 volatile unsigned int ticksperperiod = startTPP;
-unsigned int B_currticks = startticks, S_currticks = startticks, E_currticks = startticks, G_currticks = startticks;
-unsigned int B_target = startticks, S_target = startticks, E_target = startticks, G_target = startticks;
+unsigned int B_currticks = startticks, S_currticks = S_startticks, E_currticks = E_startticks, G_currticks = startticks;
+unsigned int B_target = startticks, S_target = S_startticks, E_target = E_startticks, G_target = startticks;
 
 
 
@@ -314,43 +313,53 @@ void lerp_ticks() {
 //increment / decrement and CLAMP
 
 
-
-
   if (B_currticks < B_target) {
-    B_currticks += ticksperperiod;
-    if (B_currticks > B_target) B_currticks = B_target;
-  } else {
-    B_currticks -= ticksperperiod;
-    if (B_currticks < B_target) B_currticks = B_target;
-  }
 
+    if (B_currticks + ticksperperiod > B_target) B_currticks = B_target;
+    else B_currticks += ticksperperiod;
+
+  } else {
+
+    if (B_currticks < ticksperperiod + B_target) B_currticks = B_target;
+    else B_currticks -= ticksperperiod;
+
+  }
 
   if (S_currticks < S_target) {
-    S_currticks += ticksperperiod;
-    if (S_currticks > S_target) S_currticks = S_target;
-  } else {
-    S_currticks -= ticksperperiod;
-    if (S_currticks < S_target) S_currticks = S_target;
-  }
 
+    if (S_currticks + ticksperperiod > S_target) S_currticks = S_target;
+    else S_currticks += ticksperperiod;
+
+  } else {
+
+    if (S_currticks < ticksperperiod + S_target) S_currticks = S_target;
+    else S_currticks -= ticksperperiod;
+
+  }
 
   if (E_currticks < E_target) {
-    E_currticks += ticksperperiod;
-    if (E_currticks > E_target) E_currticks = E_target;
-  } else {
-    E_currticks -= ticksperperiod;
-    if (E_currticks < E_target) E_currticks = E_target;
-  }
 
+    if (E_currticks + ticksperperiod > E_target) E_currticks = E_target;
+    else E_currticks += ticksperperiod;
+
+  } else {
+
+    if (E_currticks < ticksperperiod + E_target) E_currticks = E_target;
+    else E_currticks -= ticksperperiod;
+
+  }
 
   if (G_currticks < G_target) {
-    G_currticks += ticksperperiod;
-    if (G_currticks > G_target) G_currticks = G_target;
-  } else {
-    G_currticks -= ticksperperiod;
-    if (G_currticks < G_target) G_currticks = G_target;
-  }
 
+    if (G_currticks + ticksperperiod > G_target) G_currticks = G_target;
+    else G_currticks += ticksperperiod;
+
+  } else {
+
+    if (G_currticks < ticksperperiod + G_target) G_currticks = G_target;
+    else G_currticks -= ticksperperiod;
+
+  }
 
 }
 
@@ -689,6 +698,8 @@ static void handleCommand(const TPacket *cmd) {
 	    S_target = S_currticks;
             E_target = E_currticks;
             G_target = G_currticks;
+            sendResponse(3, S_currticks, E_currticks, G_currticks);
+            //sendResponse(3, S_target, E_target, G_target);
             break;       
             
        case COMMAND_INCR_CLAW_SPEED:
@@ -757,8 +768,8 @@ static void handleCommand(const TPacket *cmd) {
 
         case COMMAND_CLAW_HOME:
             B_target = startticks;
-            S_target = startticks;
-            E_target = startticks;
+            S_target = S_startticks;
+            E_target = E_startticks;
             G_target = startticks;
             ticksperperiod = startTPP;
             //clawmode = 9;

@@ -297,8 +297,8 @@ CLAW_KEYS = {
 NEW_CLAW_KEYS = {
     'j': COMMAND_INCR_CLAW_BASE, #base left
     'l': COMMAND_DECR_CLAW_BASE, #base right
-    'k': COMMAND_INCR_CLAW_SHOULDER, #shoulder up
-    'i': COMMAND_DECR_CLAW_SHOULDER, #shoulder down
+    'i': COMMAND_INCR_CLAW_SHOULDER, #shoulder up
+    'k': COMMAND_DECR_CLAW_SHOULDER, #shoulder down
     'u': COMMAND_INCR_CLAW_ELBOW, #elbow out
     'n': COMMAND_DECR_CLAW_ELBOW, #elbow in
 }
@@ -382,7 +382,7 @@ def _handle_tap(ch):
         _print("decreasing claw speed")
     else:
         #_print(f"Unknown key '{ch}'. Valid: e c p h v  i/I o/O k/K n/N  q")
-        _print(f"Unknown key '{ch}'. Valid: e c p h v  ijkl un [ ]  q")
+        _print(f"Unknown key '{ch}'. Valid: e c p h ij kl un [ ] +-(need press shift)  q")
 
 
 
