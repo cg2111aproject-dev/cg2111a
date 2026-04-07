@@ -147,6 +147,6 @@ def render_map_numpy(
 
     sampled = sampled.reshape(disp_rows, samples_per_cell,
                               disp_cols, samples_per_cell)
-    cell_min = np.percentile(sampled, 25, axis=(1, 3)).astype(np.uint8)
+    cell_min = sampled.min(axis=(1, 3))
 
     return _VIS_LUT[cell_min]
