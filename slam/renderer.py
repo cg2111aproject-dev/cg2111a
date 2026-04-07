@@ -133,7 +133,7 @@ def render_map_numpy(
 
     maparray = np.rot90(np.flipud(maparray), k=1)
 
-    samples_per_cell = 6
+    samples_per_cell = 8
 
     r_centers = np.linspace(row_lo, row_hi, disp_rows * samples_per_cell,
                             endpoint=False)
@@ -147,6 +147,6 @@ def render_map_numpy(
 
     sampled = sampled.reshape(disp_rows, samples_per_cell,
                               disp_cols, samples_per_cell)
-    cell_min = sampled.min(axis=(1, 3))
+    cell_min = np.percentile(sampled, 25, axis=(1, 3)).astype(np.uint8)
 
     return _VIS_LUT[cell_min]
