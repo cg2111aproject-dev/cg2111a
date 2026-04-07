@@ -421,7 +421,7 @@ def runCommandInterface():
             if not r:
                 if last_slew_key is not None:
                     sendCommand(COMMAND_STOP_CLAW)
-                    _print("stopping claw 1")
+                    #_print("stopping claw 1")
                     last_slew_key = None
                 continue
 
@@ -440,12 +440,12 @@ def runCommandInterface():
                 if ch_lower != last_slew_key:
                     last_slew_key = ch_lower
                     _new_slew_claw(ch_lower)
-                    _print("slewing claw")
+                    #_print("slewing claw")
                     #_slew_claw(ch_lower, reverse=ch.isupper())
             else:
                 if last_slew_key is not None:
                     sendCommand(COMMAND_STOP_CLAW)
-                    _print("stopping claw 2")
+                    #_print("stopping claw 2")
                     last_slew_key = None
 
 

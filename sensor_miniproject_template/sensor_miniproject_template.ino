@@ -183,9 +183,9 @@ ISR(INT3_vect) {
 #define BASE_LOWER_LIMIT      0
 #define BASE_UPPER_LIMIT      180
 #define SHOULDER_LOWER_LIMIT  35
-#define SHOULDER_UPPER_LIMIT  140
-#define ELBOW_LOWER_LIMIT     35
-#define ELBOW_UPPER_LIMIT     120
+#define SHOULDER_UPPER_LIMIT  153
+#define ELBOW_LOWER_LIMIT     90 //110
+#define ELBOW_UPPER_LIMIT     142 //138 //120
 #define GRIPPER_LOWER_LIMIT   105 //90, too wide
 #define GRIPPER_UPPER_LIMIT   130 //105
 
@@ -193,9 +193,9 @@ ISR(INT3_vect) {
 #define BASE_LOWER_LIMIT_TICKS      1000
 #define BASE_UPPER_LIMIT_TICKS      5000
 #define SHOULDER_LOWER_LIMIT_TICKS  1778
-#define SHOULDER_UPPER_LIMIT_TICKS  4111
-#define ELBOW_LOWER_LIMIT_TICKS     1778
-#define ELBOW_UPPER_LIMIT_TICKS     3667
+#define SHOULDER_UPPER_LIMIT_TICKS  4400 //4489
+#define ELBOW_LOWER_LIMIT_TICKS     3000 //3444
+#define ELBOW_UPPER_LIMIT_TICKS     4156 //4067 //3667
 #define GRIPPER_LOWER_LIMIT_TICKS   3333
 #define GRIPPER_UPPER_LIMIT_TICKS   3889
 
@@ -238,6 +238,9 @@ uint32_t degree_to_ticks(uint32_t deg){
   return round(deg * 22.22222) + 1000;
 }
 
+void reportAngle(){
+  sendResponse(3, S_currticks, E_currticks, G_currticks);
+}
 
 
 
@@ -698,11 +701,11 @@ static void handleCommand(const TPacket *cmd) {
 	    S_target = S_currticks;
             E_target = E_currticks;
             G_target = G_currticks;
-            sendResponse(3, S_currticks, E_currticks, G_currticks);
             //sendResponse(3, S_target, E_target, G_target);
             break;       
             
        case COMMAND_INCR_CLAW_SPEED:
+	    reportAngle();
 	    if (ticksperperiod + TPP_STEP > TPP_MAX) ticksperperiod = TPP_MAX;
 	    else ticksperperiod += TPP_STEP;
 	    break;
