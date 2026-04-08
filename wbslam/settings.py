@@ -32,10 +32,10 @@ MAP_SIZE_METERS = 5
 
 # How aggressively new LIDAR scans update the map (1 = slow, 10 = fast).
 # Lower values produce smoother maps; higher values react faster to changes.
-MAP_QUALITY = 2
+MAP_QUALITY = 5
 
 # Maximum gap (in mm) that BreezySLAM treats as a continuous wall.
-HOLE_WIDTH_MM = 400
+HOLE_WIDTH_MM = 600
 
 # ===========================================================================
 # Scan settings
