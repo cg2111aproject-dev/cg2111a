@@ -125,7 +125,7 @@ def run_slam_process(pss: ProcessSharedState) -> None:
 
     # Import the LIDAR driver from the same directory.
     try:
-        import lidar as lidar_driver
+        import rplidar_driver as lidar_driver
     except ImportError:
         pss.set_error('lidar.py not found in the slam/ directory')
         pss.stopped.value = True
