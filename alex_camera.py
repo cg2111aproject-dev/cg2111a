@@ -21,8 +21,8 @@ Requirements:
 # Two image rows are packed into one terminal row using the Unicode
 # LOWER HALF BLOCK character (▄), so the captured image height must
 # be even.
-RENDER_WIDTH  = 80
-RENDER_HEIGHT = 44
+RENDER_WIDTH  = 44
+RENDER_HEIGHT = 80
 
 RESET = "\033[0m"
 
@@ -41,10 +41,13 @@ def cameraOpen():
     """
     from picamera2 import Picamera2
     import time
+    from picamera2.utils import Transform 
     cam = Picamera2()
     config = cam.create_still_configuration(
         main={"size": (RENDER_WIDTH, RENDER_HEIGHT), "format": "RGB888"}
     )
+
+    config.transform = Transform(transpose=True, flip_h=True)
     cam.configure(config)
     cam.start()
     time.sleep(0.5)   # allow auto-exposure to settle
