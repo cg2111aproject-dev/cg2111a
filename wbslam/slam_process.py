@@ -75,7 +75,11 @@ def _resample_scan(
         # Negate to convert from RPLidar CW to BreezySLAM CCW convention,
         # then apply the mounting offset.
         ccw_angle = -angle + LIDAR_OFFSET_DEG
-        bin_idx = int(round(ccw_angle)) % SCAN_SIZE
+        bin_idx = int(round(ccw_angle))
+        if bin_idx < 0:
+            bin_idx = (bin_idx % SCAN_SIZE + SCAN_SIZE) % SCAN_SIZE
+        else:
+            bin_idx = bin_idx % SCAN_SIZE
         bin_sums[bin_idx] += dist
         bin_counts[bin_idx] += 1
 
