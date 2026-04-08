@@ -89,21 +89,23 @@ def captureGreyscaleFrame(cam):
     """
     import numpy as np
     rgb = captureFrame(cam)
-    """grey = (0.299 * rgb[:, :, 0] +
+    grey = (0.299 * rgb[:, :, 0] +
             0.587 * rgb[:, :, 1] +
-            0.114 * rgb[:, :, 2]).astype(np.uint8)"""
-    grey = (0.299 * rgb[:, :, 0] + 
-            0.587 * rgb[:, :, 1] + 
-            0.114 * rgb[:, :, 2])
-    
-    g_min = grey.min() #"""contast stretching"""
-    g_max = grey.max()
+            0.114 * rgb[:, :, 2]).astype(np.uint8)
+    return grey
 
-    if g_max > g_min:
-        # Scale to 0.0 - 255.0
-        grey = (grey - g_min) * (255.0 / (g_max - g_min))
+    #grey = (0.299 * rgb[:, :, 0] + 
+    #       0.587 * rgb[:, :, 1] + 
+    #       0.114 * rgb[:, :, 2]) #contrast stretching code
     
-    return grey.astype(np.uint8)
+    #g_min = grey.min() #"""contast stretching"""
+    #g_max = grey.max()
+
+    #if g_max > g_min:
+        # Scale to 0.0 - 255.0
+        #grey = (grey - g_min) * (255.0 / (g_max - g_min))
+    
+    #return grey.astype(np.uint8)
 
 
 def renderGreyscaleFrame(frame):
