@@ -47,7 +47,7 @@ def cameraOpen():
         main={"size": (RENDER_WIDTH, RENDER_HEIGHT), "format": "RGB888"}
     )
 
-    config.transform = Transform(rotation=90)
+    config["transform"] = Transform(rotation=90)
     cam.configure(config)
     cam.start()
     time.sleep(0.5)   # allow auto-exposure to settle
