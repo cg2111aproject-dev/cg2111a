@@ -94,8 +94,8 @@ static void move(uint8_t speed, DriveDir direction) {
 #define SHOULDER_UPPER_LIMIT  153
 #define ELBOW_LOWER_LIMIT     51 ///48 ///90 //110
 #define ELBOW_UPPER_LIMIT     142 //138 //120
-#define GRIPPER_LOWER_LIMIT   105 //90, too wide
-#define GRIPPER_UPPER_LIMIT   130 //105
+#define GRIPPER_LOWER_LIMIT   105 //(90 too wide)
+#define GRIPPER_UPPER_LIMIT   125 ///120 ///130
 
 //REMEMBER TO UPDATE THESE WHEN CHANGING ANYTHING ABOVE
 #define BASE_LOWER_LIMIT_TICKS      1000
@@ -105,7 +105,7 @@ static void move(uint8_t speed, DriveDir direction) {
 #define ELBOW_LOWER_LIMIT_TICKS     2133 ///2067 ///3000 //3444
 #define ELBOW_UPPER_LIMIT_TICKS     4156 //4067 //3667
 #define GRIPPER_LOWER_LIMIT_TICKS   3333
-#define GRIPPER_UPPER_LIMIT_TICKS   3889
+#define GRIPPER_UPPER_LIMIT_TICKS   3778 ///3667 ///3889
 
 #define BASE_PIN     (1 << 0)
 #define SHOULDER_PIN (1 << 1)
@@ -611,31 +611,31 @@ static void handleCommand(const TPacket *cmd) {
 
         case COMMAND_FORWARD:
             if (buttonState == STATE_RUNNING) move(motorSpeed, GO);
-            sendResponse(RESP_OK, 0, 0, 0);
+            //sendResponse(RESP_OK, 0, 0, 0);
             break;
 
 
         case COMMAND_BACKWARD:
             if (buttonState == STATE_RUNNING) move(motorSpeed, BACK);
-            sendResponse(RESP_OK, 0, 0, 0);
+            //sendResponse(RESP_OK, 0, 0, 0);
             break;
 
 
         case COMMAND_TURN_LEFT:
             if (buttonState == STATE_RUNNING) move(motorSpeed, CCW);
-            sendResponse(RESP_OK, 0, 0, 0);
+            //sendResponse(RESP_OK, 0, 0, 0);
             break;
 
 
         case COMMAND_TURN_RIGHT:
             if (buttonState == STATE_RUNNING) move(motorSpeed, CW);
-            sendResponse(RESP_OK, 0, 0, 0);
+            //sendResponse(RESP_OK, 0, 0, 0);
             break;
 
 
         case COMMAND_STOP_MOTORS:
             move(0, MSTOP);
-            sendResponse(RESP_OK, 0, 0, 0);
+            //sendResponse(RESP_OK, 0, 0, 0);
             break;
 
 

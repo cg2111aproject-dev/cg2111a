@@ -253,8 +253,9 @@ def _recv_thread():
 # ----------------------------------------------------------------
 
 
+MAX_FRAMES = 100
 _camera          = alex_camera.cameraOpen()
-_frames_remaining = 10   # spec: 10 images total
+_frames_remaining = MAX_FRAMES #10   # spec: 10 images total
 
 
 
@@ -265,7 +266,7 @@ def handleCameraCommand():
         _print("Refused: E-Stop active.")
         return
     if _frames_remaining <= 0:
-        _print("No frames remaining (limit: 10).")
+        _print(f"No frames remaining (limit: {MAX_FRAMES}).")
         return
     frame = alex_camera.captureGreyscaleFrame(_camera)
     alex_camera.renderGreyscaleFrame(frame)

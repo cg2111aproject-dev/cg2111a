@@ -72,7 +72,7 @@ def captureFrame(cam):
     raw = cam.capture_array("main")
     # picamera2 RGB888 returns bytes in BGR order on most platforms; swap to RGB.
     rgb = raw[:, :, [2, 1, 0]]
-    return np.rot90(rgb, k=-1)
+    return np.rot90(rgb, k=1) #-1
 
 
 def captureGreyscaleFrame(cam):
@@ -96,7 +96,7 @@ def captureGreyscaleFrame(cam):
             0.587 * rgb[:, :, 1] + 
             0.114 * rgb[:, :, 2])
     
-    g_min = grey.min() """contast stretching"""
+    g_min = grey.min() #"""contast stretching"""
     g_max = grey.max()
 
     if g_max > g_min:
