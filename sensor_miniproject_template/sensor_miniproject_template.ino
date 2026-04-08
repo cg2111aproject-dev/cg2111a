@@ -94,7 +94,7 @@ static void move(uint8_t speed, DriveDir direction) {
 #define SHOULDER_UPPER_LIMIT  153
 #define ELBOW_LOWER_LIMIT     51 ///48 ///90 //110
 #define ELBOW_UPPER_LIMIT     142 //138 //120
-#define GRIPPER_LOWER_LIMIT   105 //(90 too wide)
+#define GRIPPER_LOWER_LIMIT   108 ///105 //(90 too wide)
 #define GRIPPER_UPPER_LIMIT   125 ///120 ///130
 
 //REMEMBER TO UPDATE THESE WHEN CHANGING ANYTHING ABOVE
@@ -104,7 +104,7 @@ static void move(uint8_t speed, DriveDir direction) {
 #define SHOULDER_UPPER_LIMIT_TICKS  4400 //4489
 #define ELBOW_LOWER_LIMIT_TICKS     2133 ///2067 ///3000 //3444
 #define ELBOW_UPPER_LIMIT_TICKS     4156 //4067 //3667
-#define GRIPPER_LOWER_LIMIT_TICKS   3333
+#define GRIPPER_LOWER_LIMIT_TICKS   3400 ///3333
 #define GRIPPER_UPPER_LIMIT_TICKS   3778 ///3667 ///3889
 
 #define BASE_PIN     (1 << 0)
