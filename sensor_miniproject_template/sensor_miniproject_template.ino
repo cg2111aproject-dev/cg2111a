@@ -90,7 +90,7 @@ static void move(uint8_t speed, DriveDir direction) {
 // =============================================================
 #define BASE_LOWER_LIMIT      0
 #define BASE_UPPER_LIMIT      180
-#define SHOULDER_LOWER_LIMIT  35 ///103 //35
+#define SHOULDER_LOWER_LIMIT  94 ///35 ///103 //35
 #define SHOULDER_UPPER_LIMIT  153
 #define ELBOW_LOWER_LIMIT     51 ///48 ///90 //110
 #define ELBOW_UPPER_LIMIT     142 //138 //120
@@ -100,12 +100,12 @@ static void move(uint8_t speed, DriveDir direction) {
 //REMEMBER TO UPDATE THESE WHEN CHANGING ANYTHING ABOVE
 #define BASE_LOWER_LIMIT_TICKS      1000
 #define BASE_UPPER_LIMIT_TICKS      5000
-#define SHOULDER_LOWER_LIMIT_TICKS  1778 ///3289 //1778
+#define SHOULDER_LOWER_LIMIT_TICKS  3089 ///1778 ///3289 //1778
 #define SHOULDER_UPPER_LIMIT_TICKS  4400 //4489
-#define ELBOW_LOWER_LIMIT_TICKS     2133 ///2067 ///3000 //3444
-#define ELBOW_UPPER_LIMIT_TICKS     4156 //4067 //3667
-#define GRIPPER_LOWER_LIMIT_TICKS   3400 ///3333
-#define GRIPPER_UPPER_LIMIT_TICKS   3778 ///3667 ///3889
+#define ELBOW_LOWER_LIMIT_TICKS     1000 //2133 ///2067 ///3000 //3444
+#define ELBOW_UPPER_LIMIT_TICKS     5000 //4156 //4067 //3667
+#define GRIPPER_LOWER_LIMIT_TICKS   2111 ////3400 ///3333
+#define GRIPPER_UPPER_LIMIT_TICKS   4555 ////3778 ///3667 ///3889
 
 #define BASE_PIN     (1 << 0)
 #define SHOULDER_PIN (1 << 1)
@@ -126,7 +126,7 @@ static void move(uint8_t speed, DriveDir direction) {
 #define TPP_MIN 6
 
 #define startticks 3444
-#define S_startticks 1778 //1778 //3720
+#define S_startticks 3089 ///3760 //1778 //3720
 #define E_startticks 2978 //3196 //3256
 #define TICKS_SP1 3420
 #define TICKS_SP2 3576 //3506
@@ -667,11 +667,11 @@ static void handleCommand(const TPacket *cmd) {
             break;
 
        case COMMAND_INCR_CLAW_ELBOW:
-            E_target = ELBOW_UPPER_LIMIT_TICKS;
+            G_target = ELBOW_UPPER_LIMIT_TICKS;
             break;
 
        case COMMAND_DECR_CLAW_ELBOW:
-            E_target = ELBOW_LOWER_LIMIT_TICKS;
+            G_target = ELBOW_LOWER_LIMIT_TICKS;
             break;
 
        case COMMAND_OPEN_GRIPPER:

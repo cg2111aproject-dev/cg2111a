@@ -21,8 +21,8 @@ Requirements:
 # Two image rows are packed into one terminal row using the Unicode
 # LOWER HALF BLOCK character (▄), so the captured image height must
 # be even.
-RENDER_WIDTH  = 44
-RENDER_HEIGHT = 80
+RENDER_WIDTH  = 80
+RENDER_HEIGHT = 44
 
 RESET = "\033[0m"
 
@@ -72,7 +72,7 @@ def captureFrame(cam):
     raw = cam.capture_array("main")
     # picamera2 RGB888 returns bytes in BGR order on most platforms; swap to RGB.
     rgb = raw[:, :, [2, 1, 0]]
-    return np.rot90(rgb, k=1) #-1
+    return np.rot90(rgb, k=0) #-1
 
 
 def captureGreyscaleFrame(cam):

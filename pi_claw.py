@@ -253,7 +253,7 @@ def _recv_thread():
 # ----------------------------------------------------------------
 
 
-MAX_FRAMES = 100
+MAX_FRAMES = 15
 _camera          = alex_camera.cameraOpen()
 _frames_remaining = MAX_FRAMES #10   # spec: 10 images total
 
