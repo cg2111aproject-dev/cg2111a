@@ -19,7 +19,7 @@ PI_PORT = 5002
 MAP_SIZE_PIXELS  = 600
 MAP_SIZE_METERS  = 5
 MAP_QUALITY      = 2
-HOLE_WIDTH_MM    = 400
+HOLE_WIDTH_MM    = 200
 SCAN_SIZE        = 360
 SCAN_RATE_HZ     = 5
 DETECTION_ANGLE  = 360
@@ -69,8 +69,7 @@ def run():
 
     slam     = make_slam()
     mapbytes = bytearray(MAP_SIZE_PIXELS * MAP_SIZE_PIXELS)
-    persistent_map = np.zeros((MAP_SIZE_PIXELS, MAP_SIZE_PIXELS), dtype=np.uint8)
-
+    persistent_map = np.zeros((MAP_SIZE_PIXELS, MAP_SIZE_PIXELS), dtype=np.uint8)  # ADD THIS
     fig, ax_map = plt.subplots(1, 1, figsize=(10, 10))
     
     # --- HIGH CONTRAST BLACK & WHITE THEME ---
@@ -85,8 +84,8 @@ def run():
         spine.set_edgecolor('#010101')
 
     map_img = ax_map.imshow(
-        np.zeros((MAP_SIZE_PIXELS, MAP_SIZE_PIXELS, 3), dtype=np.uint8),
-        origin='lower',
+        np.zeros((MAP_SIZE_PIXELS, MAP_SIZE_PIXELS), dtype=np.uint8),
+        cmap='gray', vmin=0, vmax=255, origin='lower',
         extent=[0, MAP_SIZE_METERS, 0, MAP_SIZE_METERS],
         interpolation='nearest'
     )
@@ -157,17 +156,18 @@ def run():
 
                 # --- 4. BOX & ARROW LOGIC (DOT AT REAR) ---
                 # We move back by offset and left by half-width to find the rectangle's bottom-left origin
-                bx = rx - (LIDAR_X_OFFSET * math.cos(rad) - (ROBOT_WIDTH/2) * math.sin(rad))
-                by = ry - (LIDAR_X_OFFSET * math.sin(rad) + (ROBOT_WIDTH/2) * math.cos(rad))
+                # Center the box on the robot position
+                cx = rx - (ROBOT_LENGTH / 2) * math.cos(rad) + (ROBOT_WIDTH / 2) * math.sin(rad)
+                cy = ry - (ROBOT_LENGTH / 2) * math.sin(rad) - (ROBOT_WIDTH / 2) * math.cos(rad)
 
-                robot_rect.set_xy((bx, by))
+                robot_rect.set_xy((cx, cy))
                 robot_rect.angle = theta_deg
                 robot_dot.set_data([rx], [ry])
 
                 # Persistent Path (Increased buffer to 2000 points)
                 path_x.append(rx)
                 path_y.append(ry)
-                if len(path_x) > 2000: path_x.pop(0); path_y.pop(0)
+                if len(path_x) > 1e9: path_x.pop(0); path_y.pop(0)
                 path_line.set_data(path_x, path_y)
 
                 if heading_arrow: heading_arrow.remove()
@@ -186,14 +186,19 @@ def run():
 
                 arr = np.frombuffer(mapbytes, dtype=np.uint8).reshape(MAP_SIZE_PIXELS, MAP_SIZE_PIXELS)
 
-                # Max-hold: once a cell is marked as wall, it stays
-                persistent_map[:] = np.maximum(persistent_map, arr)
+                rise_mask = arr > persistent_map
+                free_mask = arr > 170
 
-                rgb = np.zeros((MAP_SIZE_PIXELS, MAP_SIZE_PIXELS, 3), dtype=np.uint8)
-                rgb[persistent_map < 50]  = [30,  30,  30]    # Unknown → dark grey
-                rgb[(persistent_map >= 50) & (persistent_map < 200)] = [220, 220, 220]  # Free → light grey
-                rgb[persistent_map >= 200] = [255, 255, 255]  # Wall → pure white
-                map_img.set_data(rgb)
+                persistent_map[rise_mask & free_mask] = arr[rise_mask & free_mask]
+                persistent_map[rise_mask & ~free_mask] = arr[rise_mask & ~free_mask]
+                persistent_map[~rise_mask & free_mask] = (persistent_map[~rise_mask & free_mask] * 0.85 +
+                                                          arr[~rise_mask & free_mask] * 0.15).astype(np.uint8)
+                persistent_map[~rise_mask & ~free_mask] = (persistent_map[~rise_mask & ~free_mask] * 0.995 +
+                                                           arr[~rise_mask & ~free_mask] * 0.005).astype(np.uint8)
+
+                arr_float = persistent_map.astype(np.float32)
+                arr_stretched = np.clip((arr_float - 170) / (245 - 170) * 255, 0, 255).astype(np.uint8)
+                map_img.set_data(arr_stretched)
                 
                 ax_map.set_title(f'SLAM Map: x={x_mm:.0f}mm y={y_mm:.0f}mm θ={theta_deg:.1f}°', color='FFFFFF')
 
