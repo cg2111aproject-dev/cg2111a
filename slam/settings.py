@@ -32,7 +32,7 @@ MAP_SIZE_METERS = 8
 MAP_QUALITY = 2
 
 # Maximum gap (in mm) that BreezySLAM treats as a continuous wall.
-HOLE_WIDTH_MM = 100
+HOLE_WIDTH_MM = 200
 
 # ===========================================================================
 # Scan settings
