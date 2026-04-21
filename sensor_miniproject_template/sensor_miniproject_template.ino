@@ -1,41 +1,8 @@
-/*
- * sensor_miniproject_template.ino
- * Studio 13: Sensor Mini-Project
- *
- * This sketch is split across three files in this folder:
- *
- *   packets.h        - TPacket protocol: enums, struct, framing constants.
- *                      Must stay in sync with pi_sensor.py.
- *
- *   serial_driver.h  - Transport layer.  Set USE_BAREMETAL_SERIAL to 0
- *                      (default) for the Arduino Serial path that works
- *                      immediately, or to 1 to use the bare-metal USART
- *                      driver (Activity 1).  Also contains the
- *                      sendFrame / receiveFrame framing code.
- *
- *   sensor_miniproject_template.ino  (this file)
- *                    - Application logic: packet helpers, E-Stop state
- *                      machine, color sensor, setup(), and loop().
- */
-
-
-
-
-
-
-
-
 #include "packets.h"
 #include "serial_driver.h"
 #include <AFMotor.h>
 #include <avr/io.h>
 #include <avr/interrupt.h>
-
-
-
-
-
-
 
 
 // =============================================================
@@ -85,6 +52,7 @@ static void move(uint8_t speed, DriveDir direction) {
     }
 }
 
+
 // =============================================================
 // Claw servo definitions
 // =============================================================
@@ -112,19 +80,18 @@ static void move(uint8_t speed, DriveDir direction) {
 #define ELBOW_PIN    (1 << 2)
 #define GRIPPER_PIN  (1 << 3)
 
-
 #define B_CHECKPOINT 0
 #define S_CHECKPOINT 10000
 #define E_CHECKPOINT 20000
 #define G_CHECKPOINT 30000
 #define TOP_CHECKPOINT 39999
 
-
 #define startTPP 20
 #define TPP_STEP 2
 #define TPP_MAX 40
 #define TPP_MIN 6
 
+//CLAW PRESETS
 #define startticks 3444
 #define S_startticks 3089 ///3760 //1778 //3720
 #define E_startticks 2978 //3196 //3256
@@ -135,21 +102,15 @@ static void move(uint8_t speed, DriveDir direction) {
 #define TICKS_SP5 4044 //3968
 #define TICKS_SP6 4200 //4111
 
-//CLAW PRESETS
-
 int stagecount = 0;
 
 volatile unsigned int ticksperperiod = startTPP;
 unsigned int B_currticks = startticks, S_currticks = S_startticks, E_currticks = E_startticks, G_currticks = startticks;
 unsigned int B_target = startticks, S_target = S_startticks, E_target = E_startticks, G_target = startticks;
 
-
-
-
 uint32_t MPD_to_TPP(uint32_t msperdeg){
   return round(444.44444 / msperdeg);
 }
-
 
 uint32_t degree_to_ticks(uint32_t deg){
   return round(deg * 22.22222) + 1000;
@@ -159,79 +120,62 @@ void reportAngle(){
   sendResponse(3, S_currticks, E_currticks, G_currticks);
 }
 
-
-
 ISR(TIMER5_COMPB_vect)
 {
   switch (stagecount) {
-
 
     case 0:
       PORTC |= BASE_PIN;
       OCR5B += B_currticks;
       break;
 
-
     case 1:
       PORTC &= ~BASE_PIN;
       OCR5B = S_CHECKPOINT;
       break;
-
 
     case 2:
       PORTC |= SHOULDER_PIN;
       OCR5B += S_currticks;
       break;
 
-
     case 3:
       PORTC &= ~SHOULDER_PIN;
       OCR5B = E_CHECKPOINT;
       break;
-
 
     case 4:
       PORTC |= ELBOW_PIN;
       OCR5B += E_currticks;
       break;
 
-
     case 5:
       PORTC &= ~ELBOW_PIN;
       OCR5B = G_CHECKPOINT;
       break;
-
 
     case 6:
       PORTC |= GRIPPER_PIN;
       OCR5B += G_currticks;
       break;
 
-
     case 7:
       PORTC &= ~GRIPPER_PIN;
       OCR5B = B_CHECKPOINT;
       stagecount = -1;
       break;
-
-
   }
-
-
   stagecount++;
 }
 
 
 // Timer5 Compare A ISR — claw servo lerp tick every 20 ms
 ISR(TIMER5_COMPA_vect) {
-    //now_20ms++;
     lerp_ticks();
 }
 
-
 void lerp_ticks() {
 //increment / decrement and CLAMP
-
 
   if (B_currticks < B_target) {
 
@@ -291,29 +235,19 @@ void lerp_ticks() {
 #define ESTOP_PIN (1 << 3)
 #define DEBOUNCE_TIME 100
 
-
 volatile TState  buttonState = STATE_RUNNING;
 volatile bool    stateChanged = false;
 volatile uint8_t was_running = 0;
-//volatile uint32_t now_20ms = 0;
-
-// IGNORE to debounce, we increment now_20ms using TIMER5, which already interrupts every 20ms for the claw
-// IGNORE now_20ms means "how many 20ms have passed"
-
 
 ISR(INT3_vect) {
     static unsigned long lastTime = 0;
     unsigned long now = millis();
-    //sendResponse(3, 'p', now, lastTime);
 
     if (now - lastTime < DEBOUNCE_TIME) return;
     lastTime = now;  
     
     bool pressed = (PIND & ESTOP_PIN);
     pressed = !pressed;
-    //DEBUG
-    //if (pressed) sendResponse(3, 1, PIND, ESTOP_PIN);
-    //else sendResponse(3, 0, PIND, ESTOP_PIN);
 
     if (buttonState == STATE_RUNNING && pressed) {
         buttonState  = STATE_STOPPED;
@@ -327,9 +261,6 @@ ISR(INT3_vect) {
         E_target = E_currticks;
         G_target = G_currticks;
 	TIMSK2 &= ~(1 << OCIE2A); //off timer2 interrupt (colour sensor)
-	
-	//NOTE: LIDAR WILL BE STOPPED BY RPI, RPI KNOWS THIS AS WE sendStatus in loop()
-
 
     } else if (was_running == 1 && buttonState == STATE_STOPPED && !pressed) {
         was_running = 2;
@@ -341,17 +272,9 @@ ISR(INT3_vect) {
 }
 
 
-
 // =============================================================
 // Packet helpers
 // =============================================================
-
-
-
-
-
-
-
 
 static void sendResponse(TResponseType resp, uint32_t p0, uint32_t p1, uint32_t p2) {
     TPacket pkt;
@@ -364,52 +287,21 @@ static void sendResponse(TResponseType resp, uint32_t p0, uint32_t p1, uint32_t 
     sendFrame(&pkt);
 }
 
-
-
-
-
-
-
-
 static void sendStatus(TState state) {
     sendResponse(RESP_STATUS, (uint32_t)state, 0, 0);
 }
 
 
-
-
 // =============================================================
 // Color sensor (TCS3200)
 // =============================================================
-
-
-
-
-
-
-
-
 #define S0 (1 << 0)
 #define S1 (1 << 1)
 #define S2 (1 << 2)
 #define S3 (1 << 3)
 #define S_OUT (1 << 2)
 
-
-
-
-
-
-
-
-#define LDR_READINGS 5
-
-
-
-
-
-
-
+#define LDR_READINGS 5 //no. of readings to take per colour channel
 
 volatile uint32_t rising_edge_count   = 0;
 volatile uint8_t  current_colour_stage = 0;
@@ -418,32 +310,6 @@ volatile uint32_t G_channel_value     = 0;
 volatile uint32_t B_channel_value     = 0;
 volatile uint8_t  reading_count       = 0;
 volatile uint8_t count100ms = 0;
-//volatile bool enablecoloursensor = false;
-
-
-
-
-//OBSOLETE
-static void readColourChannels() {
-    current_colour_stage = 0;
-    PORTA |=  S0;
-    PORTA &= ~S1;
-
-
-    R_channel_value = 0;
-    G_channel_value = 0;
-    B_channel_value = 0;
-
-
-    TIMSK2 |= (1 << OCIE2A);
-}
-
-
-
-
-
-
-
 
 void enableChannel(uint8_t RGB) {
     switch (RGB) {
@@ -460,13 +326,6 @@ void enableChannel(uint8_t RGB) {
     }
 }
 
-
-
-
-
-
-
-
 ISR(TIMER2_COMPA_vect) {
     count100ms++;
     if (count100ms >= 10) {
@@ -474,7 +333,6 @@ ISR(TIMER2_COMPA_vect) {
         TIMER2_100MS_TRIGGER();
     }
 }
-
 
 void TIMER2_100MS_TRIGGER() {
 
@@ -521,75 +379,47 @@ void TIMER2_100MS_TRIGGER() {
                 reading_count = 0;
                 current_colour_stage = 0;
                 rising_edge_count = 0;
-                sendResponse(RESP_COLOUR_DATA, //arbitrary scaling by 10
-                            R_channel_value * 10 / LDR_READINGS,
-                            G_channel_value * 10 / LDR_READINGS,
-                            B_channel_value * 10 / LDR_READINGS
+                sendResponse(RESP_COLOUR_DATA,
+                            R_channel_value / LDR_READINGS,
+                            G_channel_value / LDR_READINGS,
+                            B_channel_value / LDR_READINGS
                 );
             }
             break;
     }
 }
 
-
-
-
-
-
-
-
 ISR(INT2_vect) {rising_edge_count++;}
-
-
-
-
-
-
-
 
 // =============================================================
 // Command handler
 // =============================================================
-
-
-
-
-
-
-
-
 static void handleCommand(const TPacket *cmd) {
     if (cmd->packetType != PACKET_TYPE_COMMAND) return;
 
-
     switch (cmd->command) {
-
 
         case COMMAND_ESTOP:
             cli();
             buttonState  = 1 - buttonState;
             stateChanged = true;
             sei();
-
-	    was_running  = 2; //SET THIS SO THE PHYSICAL ESTOP CAN UNSTOP
-
-	    //HALT MOTOR, CLAW, COLOUR SENSOR
-            if (buttonState == STATE_STOPPED) {
-	        move(0, MSTOP);
-	        B_target = B_currticks;
-		S_target = S_currticks;
-		E_target = E_currticks;
-		G_target = G_currticks;
-		TIMSK2 &= ~(1 << OCIE2A); //off timer2 interrupt
-	    }
-            break;
-
-
-
+		    was_running  = 2; //SET THIS SO THE PHYSICAL ESTOP CAN UNSTOP
+	
+		    //HALT MOTOR, CLAW, COLOUR SENSOR
+	        if (buttonState == STATE_STOPPED) {
+		    	move(0, MSTOP);
+		    	B_target = B_currticks;
+					
+				S_target = S_currticks;
+				E_target = E_currticks;
+				G_target = G_currticks;
+				TIMSK2 &= ~(1 << OCIE2A); //off timer2 interrupt
+		    }
+	        break;
 
         case COMMAND_GET_COLOUR:
-
-            //NEW START ---------------------
+			
             count100ms = 9;
             current_colour_stage = 0;
             R_channel_value = 0;
@@ -597,17 +427,11 @@ static void handleCommand(const TPacket *cmd) {
             B_channel_value = 0;
 
             TIMSK2 |= (1 << OCIE2A); //on timer2 interrupt
-            
-            //NEW END -----------------------
-
-            //readColourChannels(); //OLD
-
             break;
 
-	case COMMAND_STOP_COLOUR:
-		TIMSK2 &= ~(1 << OCIE2A); //off timer2 interrupt
-		break;
-
+		case COMMAND_STOP_COLOUR:
+			TIMSK2 &= ~(1 << OCIE2A); //off timer2 interrupt
+			break;
 
         case COMMAND_FORWARD:
             if (buttonState == STATE_RUNNING) move(motorSpeed, GO);
@@ -648,8 +472,6 @@ static void handleCommand(const TPacket *cmd) {
             sendResponse(RESP_OK, motorSpeed, 0, 0);
             break;
 
-//----------
-
        case COMMAND_INCR_CLAW_BASE:
             B_target = BASE_UPPER_LIMIT_TICKS;
             break;
@@ -675,16 +497,11 @@ static void handleCommand(const TPacket *cmd) {
             break;
 
        case COMMAND_OPEN_GRIPPER:
-            //clawmode = 0; //stop other movement
-            //sendResponse(3, 'o', 'p', clawmode);
             G_target = GRIPPER_LOWER_LIMIT_TICKS;
             G_currticks = GRIPPER_LOWER_LIMIT_TICKS;
-            //motorFL.run(FORWARD);
             break;
 
        case COMMAND_CLOSE_GRIPPER:
-            //clawmode = 0; //stop other movement
-            //sendResponse(3, 'c', 'l', clawmode);
             G_target = GRIPPER_UPPER_LIMIT_TICKS;
             G_currticks = GRIPPER_UPPER_LIMIT_TICKS;
             break;
@@ -694,27 +511,24 @@ static void handleCommand(const TPacket *cmd) {
 	        S_target = S_currticks;
             E_target = E_currticks;
             G_target = G_currticks;
-            //sendResponse(3, S_target, E_target, G_target);
             break;       
             
        case COMMAND_INCR_CLAW_SPEED:
-	    reportAngle();
-	    if (ticksperperiod + TPP_STEP > TPP_MAX) ticksperperiod = TPP_MAX;
-	    else ticksperperiod += TPP_STEP;
-	    break;
+			reportAngle();
+	    	if (ticksperperiod + TPP_STEP > TPP_MAX) ticksperperiod = TPP_MAX;
+	    	else ticksperperiod += TPP_STEP;
+	    	break;
 
        case COMMAND_DECR_CLAW_SPEED:
-	    if (ticksperperiod < TPP_STEP + TPP_MIN) ticksperperiod = TPP_MIN;
-	    else ticksperperiod -= TPP_STEP;
-	    break;
+	    	if (ticksperperiod < TPP_STEP + TPP_MIN) ticksperperiod = TPP_MIN;
+	    	else ticksperperiod -= TPP_STEP;
+	    	break;
 
        case COMMAND_CLAW_HOME:
             B_target = startticks;
             S_target = S_startticks;
             E_target = E_startticks;
-            //G_target = startticks;
             ticksperperiod = startTPP;
-            //sendResponse(RESP_OK, 0, 0, 0);
             break;
 
        case COMMAND_CLAW_P1:
@@ -740,85 +554,15 @@ static void handleCommand(const TPacket *cmd) {
        case COMMAND_CLAW_P6:
             S_target = TICKS_SP6;
             break;
-
-//----------
-
-        case COMMAND_CLAW_BASE: {
-            uint32_t angle = cmd->params[0];
-            if (angle >= BASE_LOWER_LIMIT && angle <= BASE_UPPER_LIMIT)
-                B_target = degree_to_ticks(angle);
-            sendResponse(RESP_OK, (uint32_t)angle, 0, 0);
-           
-
-        //sendResponse(3, (uint32_t)B_target, 0, 0);
-        break;
-        }
-
-        case COMMAND_CLAW_SHOULDER: {
-            uint32_t angle = cmd->params[0];
-            if (angle >= SHOULDER_LOWER_LIMIT && angle <= SHOULDER_UPPER_LIMIT)
-                S_target = degree_to_ticks(angle);
-            sendResponse(RESP_OK, (uint32_t)angle, 0, 0);
-            break;
-        }
-
-
-        case COMMAND_CLAW_ELBOW: {
-            uint32_t angle = cmd->params[0];
-            if (angle >= ELBOW_LOWER_LIMIT && angle <= ELBOW_UPPER_LIMIT)
-                E_target = degree_to_ticks(angle);
-            sendResponse(RESP_OK, (uint32_t)angle, 0, 0);
-            break;
-        }
-
-        case COMMAND_CLAW_GRIPPER: {
-            uint32_t angle = cmd->params[0];
-            if (angle >= GRIPPER_LOWER_LIMIT && angle <= GRIPPER_UPPER_LIMIT)
-                G_target = degree_to_ticks(angle);
-            sendResponse(RESP_OK, (uint32_t)angle, 0, 0);
-            break;
-        }
-
-
-        case COMMAND_CLAW_SPEED: {
-            uint32_t mpd = cmd->params[0];
-            if (mpd > 0) ticksperperiod = MPD_to_TPP(mpd);
-            sendResponse(RESP_OK, ticksperperiod, 0, 0);
-            break;
-        }
     }
 }
-
-
-
-
-
-
 
 
 // =============================================================
 // Arduino setup() and loop()
 // =============================================================
 
-
-
-
-
-
-
-
 void setup() {
-    //motorFL.setSpeed(200);
-    //motorFL.run(FORWARD);
-    //delay(3000);
-    // ... rest of setup
-
-
-
-
-
-
-
 
 #if USE_BAREMETAL_SERIAL
     usartInit(103);
@@ -826,12 +570,9 @@ void setup() {
     Serial.begin(9600);
 #endif
 
-
-    //cli(); //?
-
-
-
-
+	cli();
+	
+	
     // E-Stop button interrupt (PD3 / INT3)
     DDRD  &= ~ESTOP_PIN;
     PORTD |= ESTOP_PIN; //set high for pullup
@@ -841,13 +582,7 @@ void setup() {
     buttonState = STATE_RUNNING;
     EIMSK |=  (1 << INT3);
 
-
-
-
-
-
-
-
+	
     // Rising-edge counter for colour sensor (PD2 / INT2)
     DDRD &= ~S_OUT;    
     EICRA |= (1 << ISC21) | (1 << ISC20);
@@ -867,54 +602,24 @@ void setup() {
     PORTA |=  S0;
     PORTA &= ~S1;
 
-
-
-
-
+	
+	//Claw GPIO
     DDRC |= BASE_PIN | SHOULDER_PIN | ELBOW_PIN | GRIPPER_PIN;
 
     TCCR5A = 0b0; //WGM11 WGM10
     TIMSK5 |= 0b0110; //enable A and B interrupts
     TCNT5 = 0;
 
-
     OCR5A = TOP_CHECKPOINT; //20ms period
-    OCR5B = 0;
-
+    OCR5B = B_CHECKPOINT; //set OCR5B to 0
 
     TCCR5B = 0b00001010; //WGM13 = 0, WGM12 = 1, prescalar = 8
 
-
- 
-
-
-
-
-
-
-
-
-    sei();
     PORTC &= ~(BASE_PIN | SHOULDER_PIN | ELBOW_PIN | GRIPPER_PIN); //set all pins to LOW (CLAW)
 
-
-
-
-
-
-
-
-//  motorFL.setSpeed(200);// testing
-//  motorFL.run(FORWARD); // testing
-//  move(200, GO); // testing
+	
+	sei();
 }
-
-
-
-
-
-
-
 
 void loop() {
     // --- 1. Report any E-Stop state change to the Pi ---
@@ -926,29 +631,9 @@ void loop() {
         sendStatus(state);
     }
 
-
-
-
-
-
-
-
     // --- 2. Process incoming commands from the Pi ---
     TPacket incoming;
     if (receiveFrame(&incoming)) {
         handleCommand(&incoming);
     }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
