@@ -20,13 +20,10 @@ Usage:
   python3 pi_claw.py <pi_hostname_or_ip>   # if not localhost
 """
 
-
 import struct, time, sys, select, tty, termios
 import threading
 import socket as sock_mod
 import alex_camera
-
-
 
 
 # ----------------------------------------------------------------
@@ -39,8 +36,6 @@ SOCKET_PORT = 9000
 _sock = None
 
 
-
-
 def connectSocket():
     global _sock
     _sock = sock_mod.socket(sock_mod.AF_INET, sock_mod.SOCK_STREAM)
@@ -49,17 +44,13 @@ def connectSocket():
     print("Connected.\n")
 
 
-
-
 # ----------------------------------------------------------------
 # TPACKET CONSTANTS  (must match sensor_miniproject_template.ino)
 # ----------------------------------------------------------------
 
-
 PACKET_TYPE_COMMAND  = 0
 PACKET_TYPE_RESPONSE = 1
 PACKET_TYPE_MESSAGE  = 2
-
 
 COMMAND_ESTOP         = 0
 COMMAND_GET_COLOUR    = 1
@@ -94,43 +85,32 @@ COMMAND_CLAW_P5 = 29
 COMMAND_CLAW_P6 = 30
 COMMAND_STOP_COLOUR = 31
 
-
-
 RESP_OK          = 0
 RESP_STATUS      = 1
 RESP_COLOUR_DATA = 2
 RESP_DEBUG_MESSAGE = 3
 
-
 STATE_RUNNING = 0
 STATE_STOPPED = 1
-
 
 MAX_STR_LEN  = 32
 PARAMS_COUNT = 16
 TPACKET_SIZE = 1 + 1 + 2 + MAX_STR_LEN + (PARAMS_COUNT * 4)   # 100 bytes
 TPACKET_FMT  = f'<BB2x{MAX_STR_LEN}s{PARAMS_COUNT}I'
 
-
 MAGIC      = b'\xDE\xAD'
 FRAME_SIZE = len(MAGIC) + TPACKET_SIZE + 1                     # 103 bytes
-
-
 
 
 # ----------------------------------------------------------------
 # FRAMING
 # ----------------------------------------------------------------
 
-
 def computeChecksum(data: bytes) -> int:
     r = 0
     for b in data:
         r ^= b
     return r
-
-
-
 
 def packFrame(packetType, command, data=b'', params=None):
     if params is None:
@@ -139,46 +119,29 @@ def packFrame(packetType, command, data=b'', params=None):
     pkt = struct.pack(TPACKET_FMT, packetType, command, data_padded, *params)
     return MAGIC + pkt + bytes([computeChecksum(pkt)])
 
-
-
-
 def unpackTPacket(raw):
     f = struct.unpack(TPACKET_FMT, raw)
     return {'packetType': f[0], 'command': f[1], 'data': f[2], 'params': list(f[3:])}
-
-
-
 
 def sendCommand(cmdType, data=b'', params=None):
     """Send a framed command through the socket to pi_movement.py."""
     frame = packFrame(PACKET_TYPE_COMMAND, cmdType, data=data, params=params)
     _sock.sendall(frame)
 
-
-
-
 # ----------------------------------------------------------------
 # E-STOP STATE  (kept in sync via relayed RESP_STATUS packets)
 # ----------------------------------------------------------------
 
-
 _estop_state = STATE_RUNNING
-
-
-
 
 # ----------------------------------------------------------------
 # PACKET DISPLAY
 # ----------------------------------------------------------------
 
-
 def _print(msg):
     """Print safely from any thread while in raw tty mode."""
     sys.stdout.write('\r' + msg + '\r\n')
     sys.stdout.flush()
-
-
-
 
 def printPacket(pkt):
     global _estop_state
@@ -209,14 +172,10 @@ def printPacket(pkt):
         msg = pkt['data'].rstrip(b'\x00').decode('ascii', errors='replace')
         _print(f"Arduino: {msg}")
 
-
-
-
 # ----------------------------------------------------------------
 # SOCKET RECEIVE THREAD
 # Runs in background, prints relayed Arduino responses as they arrive
 # ----------------------------------------------------------------
-
 
 def _recv_thread():
     buf = b''
@@ -245,20 +204,13 @@ def _recv_thread():
             break
     _print("[Socket] Receive thread exited.")
 
-
-
-
 # ----------------------------------------------------------------
 # CAMERA
 # ----------------------------------------------------------------
 
-
 MAX_FRAMES = 15
 _camera          = alex_camera.cameraOpen()
 _frames_remaining = MAX_FRAMES #10   # spec: 10 images total
-
-
-
 
 def handleCameraCommand():
     global _frames_remaining
@@ -274,40 +226,9 @@ def handleCameraCommand():
     _print(f"Frames remaining: {_frames_remaining}")
 
 
-
-
 # ----------------------------------------------------------------
-# CLAW — hold to slew - UNUSED RIGHT NOW
+# CLAW — hold to slew
 # ----------------------------------------------------------------
-
-
-_claw_angles = {
-    'i': 90,    # base      (0   – 180)
-    'o': 90,    # shoulder  (50  – 135)
-    'k': 140,   # elbow     (105 – 180)
-    'n': 90,    # gripper   (90  – 105)
-}
-
-
-
-# key -> (arduino command, min angle, max angle, degrees per tick)
-CLAW_KEYS = {
-    'i': (COMMAND_CLAW_BASE,      0,   180, 7),
-    'o': (COMMAND_CLAW_SHOULDER, 50,   135, 7),
-    'k': (COMMAND_CLAW_ELBOW,   105,   180, 7),
-    'n': (COMMAND_CLAW_GRIPPER,  30,   105, 7),
-}
-
-# COMMAND_OPEN_GRIPPER = 14
-# COMMAND_CLOSE_GRIPPER = 15
-# COMMAND_STOP_CLAW = 16
-# COMMAND_INCR_CLAW_BASE = 17
-# COMMAND_DECR_CLAW_BASE = 18
-# COMMAND_INCR_CLAW_SHOULDER = 19
-# COMMAND_DECR_CLAW_SHOULDER = 20
-# COMMAND_INCR_CLAW_ELBOW = 21
-# COMMAND_DECR_CLAW_ELBOW = 22
-
 NEW_CLAW_KEYS = {
     'j': COMMAND_INCR_CLAW_BASE, #base left
     'l': COMMAND_DECR_CLAW_BASE, #base right
@@ -317,52 +238,14 @@ NEW_CLAW_KEYS = {
     'n': COMMAND_DECR_CLAW_ELBOW, #elbow in
 }
 
-
 def _new_slew_claw(key):
     # params = [NEW_CLAW_KEYS[key]] + [0] * (PARAMS_COUNT - 1)
     sendCommand(NEW_CLAW_KEYS[key])
 
 
-def _slew_claw(key, reverse=False):
-    """Increment or decrement a joint by one step and send the new angle."""
-    cmd, lo, hi, step = CLAW_KEYS[key]
-    if reverse:
-        #_claw_angles[key] = max(_claw_angles[key] - step, lo)
-        _claw_angles[key] = lo
-    else:
-        #_claw_angles[key] = min(_claw_angles[key] + step, hi)
-        _claw_angles[key] = hi
-
-
-    params = [_claw_angles[key]] + [0] * (PARAMS_COUNT - 1)
-    _print(f"number: {_claw_angles[key]}")
-    sendCommand(cmd, params=params)
-
-
-
-
-def _set_claw_speed():
-    """Prompt for ms-per-degree. Needs normal tty so we temporarily restore it."""
-    fd = sys.stdin.fileno()
-    old = termios.tcgetattr(fd)
-    termios.tcsetattr(fd, termios.TCSADRAIN, old)
-    try:
-        val = int(input("\r  Claw speed ms/deg (1-999): ").strip())
-    except ValueError:
-        print("\r Invalid value.")
-        return
-    finally:
-        tty.setraw(fd)
-    params = [val] + [0] * (PARAMS_COUNT - 1)
-    sendCommand(COMMAND_CLAW_SPEED, params=params)
-
-
-
-
 # ----------------------------------------------------------------
 # SINGLE-TAP HANDLER  (non-claw keys)
 # ----------------------------------------------------------------
-
 
 def _handle_tap(ch):
 
@@ -383,7 +266,6 @@ def _handle_tap(ch):
         elif ch == 'p': handleCameraCommand()
 
         elif ch == 'h':
-            #_claw_angles.update({'i': 90, 'o': 90, 'k': 140, 'n': 90})
             sendCommand(COMMAND_CLAW_HOME)
             _print("Claw homing...")
         elif ch == '1':
@@ -404,8 +286,6 @@ def _handle_tap(ch):
         elif ch == '6':
             sendCommand(COMMAND_CLAW_P6)
             _print("Claw going to P6...")
-        #elif ch == 'v':
-    #    _set_claw_speed()
         elif ch == '[':
             sendCommand(COMMAND_OPEN_GRIPPER)
             _print("opening gripper...")
@@ -419,7 +299,6 @@ def _handle_tap(ch):
             sendCommand(COMMAND_DECR_CLAW_SPEED)
             _print("decreasing claw speed")
         else:
-            #_print(f"Unknown key '{ch}'. Valid: e c p h v  i/I o/O k/K n/N  q")
             _print(f"Unknown key '{ch}'. Valid: e cx p h123456 ij kl un [ ] +-  q")
 
 
@@ -434,11 +313,9 @@ def runCommandInterface():
     print("Hold i/o/k/n: slew joint fwd   Shift+same: slew bwd")
     print("c: colour   p: camera   h: home claw   v: claw speed   e: E-Stop   q: quit\n")
 
-
     fd = sys.stdin.fileno()
     old_settings = termios.tcgetattr(fd)
     last_slew_key = None
-
 
     try:
         tty.setraw(fd)
@@ -447,11 +324,6 @@ def runCommandInterface():
         while True:
             r, _, _ = select.select([sys.stdin], [], [], 0.08)
 
-
-            #if not r:
-             #   continue   # no key — claw servo holds its last commanded angle
-
-
             if not r:
                 if last_slew_key is not None:
                     sendCommand(COMMAND_STOP_CLAW)
@@ -459,14 +331,12 @@ def runCommandInterface():
                     last_slew_key = None
                 continue
 
-
             ch      = sys.stdin.read(1)
             ch_lower = ch.lower()
 
-
             if ch_lower in ('q', '\x03'):  # q or Ctrl+C
                 break
-            #elif ch_lower in CLAW_KEYS:
+              
             elif ch_lower in NEW_CLAW_KEYS:
                 if _estop_state == STATE_STOPPED:
                     print("\r Refused: E-Stop active.")
@@ -474,17 +344,13 @@ def runCommandInterface():
                 if ch_lower != last_slew_key:
                     last_slew_key = ch_lower
                     _new_slew_claw(ch_lower)
-                    #_print("slewing claw")
-                    #_slew_claw(ch_lower, reverse=ch.isupper())
+                  
             else:
                 if last_slew_key is not None:
                     sendCommand(COMMAND_STOP_CLAW)
-                    #_print("stopping claw 2")
                     last_slew_key = None
 
-
                 _handle_tap(ch_lower)
-
 
     finally:
         termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
@@ -494,9 +360,6 @@ def runCommandInterface():
         sendCommand(COMMAND_STOP_COLOUR)
         sys.stdout.write("\r\nClaw operator exiting.\r\n")
         sys.stdout.flush()
-
-
-
 
 # ----------------------------------------------------------------
 # ENTRY POINT
