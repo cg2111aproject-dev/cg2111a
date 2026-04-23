@@ -108,9 +108,6 @@ volatile unsigned int ticksperperiod = startTPP;
 unsigned int B_currticks = startticks, S_currticks = S_startticks, E_currticks = E_startticks, G_currticks = startticks;
 unsigned int B_target = startticks, S_target = S_startticks, E_target = E_startticks, G_target = startticks;
 
-uint32_t MPD_to_TPP(uint32_t msperdeg){
-  return round(444.44444 / msperdeg);
-}
 
 uint32_t degree_to_ticks(uint32_t deg){
   return round(deg * 22.22222) + 1000;
@@ -514,7 +511,8 @@ static void handleCommand(const TPacket *cmd) {
             break;       
             
        case COMMAND_INCR_CLAW_SPEED:
-			reportAngle();
+			reportAngle(); //for debug purposes
+		   
 	    	if (ticksperperiod + TPP_STEP > TPP_MAX) ticksperperiod = TPP_MAX;
 	    	else ticksperperiod += TPP_STEP;
 	    	break;
